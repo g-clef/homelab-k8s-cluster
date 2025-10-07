@@ -1,0 +1,96 @@
+---
+- name: Create argocd namespace
+  command: kubectl create namespace argocd
+  register: create_namespace
+  failed_when: 
+    - create_namespace.rc != 0
+    - '"already exists" not in create_namespace.stderr'
+  changed_when: create_namespace.rc == 0
+
+- name: Install Argo CD
+  command: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  register: argocd_install
+  changed_when: '"created" in argocd_install.stdout or "configured" in argocd_install.stdout'
+
+- name: Wait for Argo CD to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
+  register: argocd_ready
+  retries: 5
+  delay: 10
+  until: argocd_ready.rc == 0
+
+- name: Expose Argo CD server with NodePort
+  shell: |
+    kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort"}}'
+  register: patch_service
+  changed_when: '"patched" in patch_service.stdout'
+
+- name: Get Argo CD admin password
+  shell: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+  register: argocd_password
+  changed_when: false
+
+- name: Display Argo CD credentials
+  debug:
+    msg: |
+      Argo CD is installed!
+      Username: admin
+      Password: {{ argocd_password.stdout }}
+      Access via: https://192.168.1.50:<nodeport>
+      
+      To get the NodePort, run:
+      kubectl get svc argocd-server -n argocd
+
+- name: Create app-of-apps configuration directory
+  file:
+    path: /tmp/argocd-apps
+    state: directory
+
+- name: Create app-of-apps Application manifest
+  copy:
+    dest: /tmp/argocd-apps/app-of-apps.yaml
+    content: |
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: app-of-apps
+        namespace: argocd
+      spec:
+        project: default
+        source:
+          repoURL: {{ argocd_repo_url }}
+          targetRevision: {{ argocd_repo_branch | default('main') }}
+          path: {{ argocd_repo_path | default('apps') }}
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: argocd
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+
+- name: Apply app-of-apps configuration
+  command: kubectl apply -f /tmp/argocd-apps/app-of-apps.yaml
+  when: argocd_repo_url is defined
+  register: app_of_apps_result
+  changed_when: '"created" in app_of_apps_result.stdout or "configured" in app_of_apps_result.stdout'
+
+- name: Display app-of-apps configuration note
+  debug:
+    msg: |
+      {% if argocd_repo_url is not defined %}
+      WARNING: argocd_repo_url is not defined.
+      To enable app-of-apps pattern, set the following variables:
+        - argocd_repo_url: your GitHub repository URL
+        - argocd_repo_branch: branch name (default: main)
+        - argocd_repo_path: path to apps directory (default: apps)
+      
+      Then re-run the playbook with these variables defined.
+      {% else %}
+      App-of-apps pattern configured successfully!
+      Repository: {{ argocd_repo_url }}
+      Branch: {{ argocd_repo_branch | default('main') }}
+      Path: {{ argocd_repo_path | default('apps') }}
+      {% endif %}

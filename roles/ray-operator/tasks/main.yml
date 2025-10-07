@@ -1,0 +1,49 @@
+---
+- name: Add KubeRay Helm repository
+  command: helm repo add kuberay https://ray-project.github.io/kuberay-helm/
+  register: helm_repo_add
+  changed_when: '"has been added" in helm_repo_add.stdout'
+  failed_when:
+    - helm_repo_add.rc != 0
+    - '"already exists" not in helm_repo_add.stderr'
+
+- name: Update Helm repositories
+  command: helm repo update
+  changed_when: false
+
+- name: Create kuberay-operator namespace
+  command: kubectl create namespace kuberay-operator
+  register: create_namespace
+  failed_when:
+    - create_namespace.rc != 0
+    - '"already exists" not in create_namespace.stderr'
+  changed_when: create_namespace.rc == 0
+
+- name: Install Ray Operator
+  command: >
+    helm install kuberay-operator kuberay/kuberay-operator
+    --namespace kuberay-operator
+    --version {{ ray_operator_version | default('1.1.1') }}
+  register: ray_install
+  failed_when:
+    - ray_install.rc != 0
+    - '"already exists" not in ray_install.stderr'
+  changed_when: ray_install.rc == 0
+
+- name: Wait for Ray Operator to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kuberay-operator -n kuberay-operator --timeout=300s
+  register: ray_ready
+  retries: 5
+  delay: 10
+  until: ray_ready.rc == 0
+
+- name: Display Ray Operator status
+  debug:
+    msg: |
+      Ray Operator installed successfully!
+      
+      To verify the installation:
+      kubectl get pods -n kuberay-operator
+      
+      To create a Ray cluster, create a RayCluster custom resource.
+      Example available at: https://docs.ray.io/en/latest/cluster/kubernetes/getting-started.html

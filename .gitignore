@@ -1,0 +1,22 @@
+# Ansible secrets
+group_vars/all/secrets.yml
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+
+# Ansible
+*.retry
+.ansible/

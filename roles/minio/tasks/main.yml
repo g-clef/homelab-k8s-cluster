@@ -1,0 +1,189 @@
+---
+- name: Create minio-operator namespace
+  command: kubectl create namespace minio-operator
+  register: create_operator_namespace
+  failed_when:
+    - create_operator_namespace.rc != 0
+    - '"already exists" not in create_operator_namespace.stderr'
+  changed_when: create_operator_namespace.rc == 0
+
+- name: Create minio namespace
+  command: kubectl create namespace minio
+  register: create_minio_namespace
+  failed_when:
+    - create_minio_namespace.rc != 0
+    - '"already exists" not in create_minio_namespace.stderr'
+  changed_when: create_minio_namespace.rc == 0
+
+- name: Add MinIO Operator Helm repository
+  command: helm repo add minio-operator https://operator.min.io
+  register: helm_repo_add
+  changed_when: '"has been added" in helm_repo_add.stdout'
+  failed_when:
+    - helm_repo_add.rc != 0
+    - '"already exists" not in helm_repo_add.stderr'
+
+- name: Update Helm repositories
+  command: helm repo update
+  changed_when: false
+
+- name: Install MinIO Operator
+  command: >
+    helm install minio-operator minio-operator/operator
+    --namespace minio-operator
+    --version {{ minio_operator_version | default('6.0.3') }}
+    --set console.enabled=true
+  register: minio_operator_install
+  failed_when:
+    - minio_operator_install.rc != 0
+    - '"already exists" not in minio_operator_install.stderr'
+  changed_when: minio_operator_install.rc == 0
+
+- name: Wait for MinIO Operator to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=operator -n minio-operator --timeout=300s
+  register: operator_ready
+  retries: 5
+  delay: 10
+  until: operator_ready.rc == 0
+
+- name: Create NFS PersistentVolumes for MinIO
+  copy:
+    dest: /tmp/minio-nfs-pvs.yaml
+    content: |
+      {% for i in range(minio_servers | default(1) | int) %}
+      {% for j in range(minio_volumes_per_server | default(1) | int) %}
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: minio-nfs-pv-{{ i }}-{{ j }}
+        labels:
+          tenant: minio
+          pool: pool-0
+      spec:
+        capacity:
+          storage: {{ minio_storage_size | default('100Gi') }}
+        accessModes:
+          - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        nfs:
+          server: {{ synology_nfs_server | default('192.168.1.50') }}
+          path: {{ synology_nfs_path | default('/volume1/minio') }}/data-{{ i }}-{{ j }}
+        mountOptions:
+          - nfsvers=4.1
+          - hard
+          - timeo=600
+          - retrans=2
+          - noresvport
+      ---
+      {% endfor %}
+      {% endfor %}
+
+- name: Apply NFS PersistentVolumes
+  command: kubectl apply -f /tmp/minio-nfs-pvs.yaml
+  register: pv_apply
+  changed_when: '"configured" in pv_apply.stdout or "created" in pv_apply.stdout'
+
+- name: Create MinIO tenant manifest with NFS storage
+  copy:
+    dest: /tmp/minio-tenant.yaml
+    content: |
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: minio-creds
+        namespace: minio
+      type: Opaque
+      stringData:
+        accesskey: {{ minio_root_user | default('minioadmin') }}
+        secretkey: {{ minio_root_password | default('minioadmin') }}
+      ---
+      apiVersion: minio.min.io/v2
+      kind: Tenant
+      metadata:
+        name: minio
+        namespace: minio
+      spec:
+        image: quay.io/minio/minio:{{ minio_version | default('RELEASE.2024-10-02T17-50-41Z') }}
+        pools:
+          - servers: {{ minio_servers | default(1) }}
+            name: pool-0
+            volumesPerServer: {{ minio_volumes_per_server | default(1) }}
+            volumeClaimTemplate:
+              metadata:
+                name: data
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                resources:
+                  requests:
+                    storage: {{ minio_storage_size | default('100Gi') }}
+                storageClassName: ""
+        mountPath: /export
+        requestAutoCert: false
+        s3:
+          bucketDNS: false
+        configuration:
+          name: minio-creds
+        prometheusOperator: false
+        logging:
+          anonymous: true
+          json: true
+          quiet: true
+        serviceAccountName: minio-sa
+        users:
+          - name: minio-creds
+
+- name: Create MinIO service account
+  command: kubectl create serviceaccount minio-sa -n minio
+  register: create_sa
+  failed_when:
+    - create_sa.rc != 0
+    - '"already exists" not in create_sa.stderr'
+  changed_when: create_sa.rc == 0
+
+- name: Apply MinIO tenant
+  command: kubectl apply -f /tmp/minio-tenant.yaml
+  register: tenant_apply
+  changed_when: '"configured" in tenant_apply.stdout or "created" in tenant_apply.stdout'
+
+- name: Wait for MinIO tenant to be ready
+  command: kubectl wait --for=jsonpath='{.status.currentState}'=Initialized tenant/minio -n minio --timeout=600s
+  register: tenant_ready
+  retries: 10
+  delay: 15
+  until: tenant_ready.rc == 0
+  ignore_errors: yes
+
+- name: Get MinIO service information
+  command: kubectl get svc -n minio -o wide
+  register: minio_services
+  changed_when: false
+
+- name: Display MinIO installation status
+  debug:
+    msg: |
+      MinIO Operator and Tenant installed successfully!
+      
+      MinIO is using NFS storage from Synology NAS:
+      - NFS Server: {{ synology_nfs_server | default('192.168.1.50') }}
+      - NFS Path: {{ synology_nfs_path | default('/volume1/minio') }}
+      
+      MinIO Services:
+      {{ minio_services.stdout }}
+      
+      Access MinIO:
+      1. S3 API Endpoint (internal): http://minio.minio.svc.cluster.local
+      2. Console UI: kubectl port-forward svc/minio-console -n minio 9001:9001
+      
+      Default Credentials:
+      - Access Key: {{ minio_root_user | default('minioadmin') }}
+      - Secret Key: {{ minio_root_password | default('minioadmin') }}
+      
+      IMPORTANT: Change default credentials in production!
+      
+      To verify the installation:
+      kubectl get tenant -n minio
+      kubectl get pods -n minio
+      kubectl get pv | grep minio
+      
+      See README for exposing MinIO S3 API externally.

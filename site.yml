@@ -1,0 +1,36 @@
+---
+- name: Setup Kubernetes Cluster
+  hosts: k8s_cluster
+  become: yes
+  roles:
+    - kubernetes-prerequisites
+
+- name: Initialize Control Plane
+  hosts: control_plane
+  become: yes
+  roles:
+    - kubernetes-control-plane
+
+- name: Join Worker Nodes
+  hosts: workers
+  become: yes
+  roles:
+    - kubernetes-worker
+
+- name: Install Argo CD
+  hosts: control_plane
+  become: yes
+  roles:
+    - argocd
+
+- name: Install Ray Operator
+  hosts: control_plane
+  become: yes
+  roles:
+    - ray-operator
+
+- name: Install MinIO
+  hosts: control_plane
+  become: yes
+  roles:
+    - minio
