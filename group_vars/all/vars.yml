@@ -1,0 +1,22 @@
+---
+# Kubernetes Configuration
+k8s_version: "1.28"
+pod_network_cidr: "10.244.0.0/16"
+
+# Ray Operator Configuration
+ray_operator_version: "1.1.1"
+
+# MinIO Configuration
+minio_operator_version: "6.0.3"
+minio_version: "RELEASE.2024-10-02T17-50-41Z"
+minio_servers: 1
+minio_volumes_per_server: 1
+minio_storage_size: "100Gi"
+# MinIO credentials are stored in group_vars/secrets.yml
+
+# Synology NAS NFS Configuration for MinIO
+synology_nfs_server: "192.168.1.50"
+synology_nfs_path: "/volume1/minio"
+
+# Argo CD Configuration
+# Configure these variables in group_vars/secrets.yml to enable app-of-apps pattern
