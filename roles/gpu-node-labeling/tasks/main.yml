@@ -1,0 +1,29 @@
+---
+- name: Wait for node to be ready
+  shell: kubectl get node {{ inventory_hostname }} --no-headers | awk '{print $2}'
+  register: node_status
+  until: node_status.stdout == "Ready"
+  retries: 30
+  delay: 10
+  delegate_to: "{{ groups['control_plane'][0] }}"
+
+- name: Label GPU node for GPU workloads
+  shell: kubectl label node {{ inventory_hostname }} accelerator=nvidia --overwrite
+  delegate_to: "{{ groups['control_plane'][0] }}"
+
+- name: Label GPU node with GPU type
+  shell: kubectl label node {{ inventory_hostname }} gpu.type={{ gpu_type | default('nvidia') }} --overwrite
+  delegate_to: "{{ groups['control_plane'][0] }}"
+
+- name: Add node selector label for GPU workloads
+  shell: kubectl label node {{ inventory_hostname }} node-role.kubernetes.io/gpu-worker=true --overwrite
+  delegate_to: "{{ groups['control_plane'][0] }}"
+
+- name: Verify node labels
+  shell: kubectl get node {{ inventory_hostname }} --show-labels
+  register: node_labels
+  delegate_to: "{{ groups['control_plane'][0] }}"
+
+- name: Display node labels
+  debug:
+    msg: "Node {{ inventory_hostname }} labels: {{ node_labels.stdout }}"

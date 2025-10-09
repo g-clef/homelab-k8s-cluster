@@ -1,0 +1,64 @@
+---
+- name: Create nvidia-device-plugin namespace
+  shell: kubectl create namespace nvidia-device-plugin --dry-run=client -o yaml | kubectl apply -f -
+
+- name: Apply NVIDIA device plugin DaemonSet
+  shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.5/nvidia-device-plugin.yml
+
+- name: Wait for NVIDIA device plugin pods to be ready
+  shell: kubectl wait --for=condition=ready pod -l name=nvidia-device-plugin-ds -n nvidia-device-plugin --timeout=300s
+
+- name: Verify GPU resources are available
+  shell: kubectl get nodes -o=custom-columns="NODE:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu"
+  register: gpu_resources
+
+- name: Display GPU resources
+  debug:
+    msg: "GPU resources available on nodes: {{ gpu_resources.stdout_lines }}"
+
+- name: Create example GPU pod manifest
+  copy:
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: gpu-test-pod
+        namespace: default
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: gpu-test
+          image: nvidia/cuda:11.8-base-ubuntu20.04
+          command: ["nvidia-smi"]
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+        nodeSelector:
+          accelerator: nvidia
+        tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+    dest: /tmp/gpu-test-pod.yaml
+    mode: '0644'
+
+- name: Display example GPU pod usage
+  debug:
+    msg: |
+      GPU node setup complete! To test GPU functionality, you can run:
+      kubectl apply -f /tmp/gpu-test-pod.yaml
+      kubectl logs gpu-test-pod
+
+      To schedule workloads on GPU nodes, use:
+      nodeSelector:
+        accelerator: nvidia
+
+      Or use node affinity:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: accelerator
+                operator: In
+                values: ["nvidia"]

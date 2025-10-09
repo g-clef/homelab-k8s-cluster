@@ -5,6 +5,12 @@
   roles:
     - kubernetes-prerequisites
 
+- name: Setup GPU Prerequisites
+  hosts: gpu_workers
+  become: yes
+  roles:
+    - gpu-prerequisites
+
 - name: Initialize Control Plane
   hosts: control_plane
   become: yes
@@ -12,10 +18,16 @@
     - kubernetes-control-plane
 
 - name: Join Worker Nodes
-  hosts: workers
+  hosts: workers:gpu_workers
   become: yes
   roles:
     - kubernetes-worker
+
+- name: Label GPU Nodes
+  hosts: gpu_workers
+  become: yes
+  roles:
+    - gpu-node-labeling
 
 - name: Install Argo CD
   hosts: control_plane
@@ -28,6 +40,12 @@
   become: yes
   roles:
     - ray-operator
+
+- name: Install NVIDIA Device Plugin
+  hosts: control_plane
+  become: yes
+  roles:
+    - nvidia-device-plugin
 
 - name: Install MinIO
   hosts: control_plane

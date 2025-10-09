@@ -1,0 +1,72 @@
+---
+- name: Update package cache
+  apt:
+    update_cache: yes
+
+- name: Install prerequisites for NVIDIA drivers
+  apt:
+    name:
+      - build-essential
+      - dkms
+      - linux-headers-generic
+      - curl
+      - gnupg
+    state: present
+
+- name: Add NVIDIA package repository key
+  apt_key:
+    url: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+    state: present
+
+- name: Add NVIDIA package repository
+  apt_repository:
+    repo: "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /"
+    state: present
+    update_cache: yes
+
+- name: Install NVIDIA driver
+  apt:
+    name: nvidia-driver-535
+    state: present
+  register: nvidia_driver_install
+
+- name: Install NVIDIA container toolkit
+  apt:
+    name:
+      - nvidia-container-toolkit
+      - nvidia-container-runtime
+    state: present
+
+- name: Configure containerd for NVIDIA runtime
+  blockinfile:
+    path: /etc/containerd/config.toml
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - NVIDIA"
+    block: |
+      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+        privileged_without_host_devices = false
+        runtime_engine = ""
+        runtime_root = ""
+        runtime_type = "io.containerd.runc.v2"
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
+          BinaryName = "/usr/bin/nvidia-container-runtime"
+    create: yes
+  notify: restart containerd
+
+- name: Set nvidia as default runtime in containerd
+  lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: '^(\s*)default_runtime_name = .*$'
+    line: '\1default_runtime_name = "nvidia"'
+    backrefs: yes
+  notify: restart containerd
+
+- name: Restart containerd service
+  systemd:
+    name: containerd
+    state: restarted
+    enabled: yes
+
+- name: Reboot system if NVIDIA driver was installed
+  reboot:
+    reboot_timeout: 300
+  when: nvidia_driver_install.changed
