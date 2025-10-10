@@ -25,21 +25,47 @@
   register: patch_service
   changed_when: '"patched" in patch_service.stdout'
 
-- name: Get Argo CD admin password
+- name: Get current Argo CD admin password
   shell: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-  register: argocd_password
+  register: argocd_current_password
   changed_when: false
+  failed_when: false
+
+- name: Update Argo CD admin password if custom password is set
+  shell: |
+    # Install argocd CLI if not present
+    if ! command -v argocd &> /dev/null; then
+      curl -sSL -o /tmp/argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+      chmod +x /tmp/argocd-linux-amd64
+      sudo mv /tmp/argocd-linux-amd64 /usr/local/bin/argocd
+    fi
+
+    # Login using initial password and update to custom password
+    argocd login --core
+    argocd account update-password --current-password "{{ argocd_current_password.stdout }}" --new-password "{{ argocd_admin_password }}"
+  when:
+    - argocd_admin_password is defined
+    - argocd_admin_password != "CHANGE_ME_IN_PRODUCTION"
+    - argocd_current_password.rc == 0
+  register: password_update
+  changed_when: password_update.rc == 0
+  failed_when: false
 
 - name: Display Argo CD credentials
   debug:
     msg: |
       Argo CD is installed!
       Username: admin
-      Password: {{ argocd_password.stdout }}
+      Password: {% if argocd_admin_password is defined and argocd_admin_password != "CHANGE_ME_IN_PRODUCTION" %}{{ argocd_admin_password }}{% else %}{{ argocd_current_password.stdout }}{% endif %}
+
       Access via: https://192.168.1.50:<nodeport>
-      
+
       To get the NodePort, run:
       kubectl get svc argocd-server -n argocd
+
+      {% if argocd_admin_password is not defined or argocd_admin_password == "CHANGE_ME_IN_PRODUCTION" %}
+      IMPORTANT: Set argocd_admin_password in group_vars/all/secrets.yml to use a custom password!
+      {% endif %}
 
 - name: Create app-of-apps configuration directory
   file:

@@ -21,7 +21,7 @@ Ansible playbook for setting up a Kubernetes cluster in a home lab environment w
 - Python 3.x
 
 ### On All Nodes
-- Ubuntu 20.04 or 22.04 (or Debian-based distribution)
+- Ubuntu 24.04 LTS (or other Debian-based distribution)
 - SSH server running
 - User with sudo privileges
 - At least 2GB RAM

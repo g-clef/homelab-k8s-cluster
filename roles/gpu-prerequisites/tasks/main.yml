@@ -15,12 +15,12 @@
 
 - name: Add NVIDIA package repository key
   apt_key:
-    url: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+    url: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub
     state: present
 
 - name: Add NVIDIA package repository
   apt_repository:
-    repo: "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /"
+    repo: "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
     state: present
     update_cache: yes
 
