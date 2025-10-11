@@ -39,14 +39,15 @@ Ansible playbook for setting up a Kubernetes cluster in a home lab environment w
    ```bash
    # Generate SSH key if you don't have one
    ssh-keygen -t rsa -b 4096
-   
+
    # Copy SSH key to all nodes
-   ssh-copy-id ansible@192.168.1.50
-   ssh-copy-id ansible@192.168.1.51
-   ssh-copy-id ansible@192.168.1.52
-   ssh-copy-id ansible@192.168.1.53
-   ssh-copy-id ansible@192.168.1.54
-   ssh-copy-id ansible@192.168.1.55
+   ssh-copy-id ansible@192.168.1.50   # Control plane
+   ssh-copy-id ansible@192.168.1.51   # Worker 1
+   ssh-copy-id ansible@192.168.1.52   # Worker 2
+   ssh-copy-id ansible@192.168.1.53   # Worker 3
+   ssh-copy-id ansible@192.168.1.54   # Worker 4
+   ssh-copy-id ansible@192.168.1.55   # Worker 5
+   ssh-copy-id ansible@192.168.1.56   # GPU Worker
    ```
 
 3. **Configure Argo CD app-of-apps** (optional):
@@ -699,7 +700,8 @@ sudo rm -rf /var/lib/etcd
 ├── inventory/
 │   └── hosts.yml           # Inventory file with node definitions
 ├── group_vars/
-│   └── all.yml             # Global variables
+│   └── all/
+│       └── vars.yml        # Global variables
 └── roles/
     ├── kubernetes-prerequisites/
     │   └── tasks/
@@ -710,12 +712,33 @@ sudo rm -rf /var/lib/etcd
     ├── kubernetes-worker/
     │   └── tasks/
     │       └── main.yml    # Join worker nodes to cluster
+    ├── gpu-prerequisites/
+    │   └── tasks/
+    │       └── main.yml    # Install NVIDIA drivers and container toolkit
+    ├── gpu-node-labeling/
+    │   └── tasks/
+    │       └── main.yml    # Label GPU nodes
+    ├── nvidia-device-plugin/
+    │   └── tasks/
+    │       └── main.yml    # Install NVIDIA Device Plugin for Kubernetes
     ├── argocd/
     │   └── tasks/
     │       └── main.yml    # Install and configure Argo CD
-    └── ray-operator/
+    ├── metallb/
+    │   └── tasks/
+    │       └── main.yml    # Install MetalLB load balancer
+    ├── ray-operator/
+    │   └── tasks/
+    │       └── main.yml    # Install Ray Operator
+    ├── minio/
+    │   └── tasks/
+    │       └── main.yml    # Install MinIO Operator and tenant
+    ├── usb-storage/
+    │   └── tasks/
+    │       └── main.yml    # Configure USB storage on worker nodes
+    └── usb-storage-k8s/
         └── tasks/
-            └── main.yml    # Install Ray Operator
+            └── main.yml    # Create Kubernetes PersistentVolumes for USB storage
 ```
 
 ## Security Notes
