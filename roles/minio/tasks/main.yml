@@ -46,6 +46,17 @@
   delay: 10
   until: operator_ready.rc == 0
 
+- name: Create MinIO NFS StorageClass
+  template:
+    src: minio-storageclass.yml.j2
+    dest: /tmp/minio-storageclass.yaml
+    mode: '0644'
+
+- name: Apply MinIO StorageClass
+  command: kubectl apply -f /tmp/minio-storageclass.yaml
+  register: storageclass_apply
+  changed_when: '"configured" in storageclass_apply.stdout or "created" in storageclass_apply.stdout'
+
 - name: Create NFS PersistentVolumes for MinIO
   copy:
     dest: /tmp/minio-nfs-pvs.yaml
@@ -65,6 +76,7 @@
         accessModes:
           - ReadWriteOnce
         persistentVolumeReclaimPolicy: Retain
+        storageClassName: minio-nfs
         nfs:
           server: {{ synology_nfs_server | default('192.168.1.50') }}
           path: {{ synology_nfs_path | default('/volume1/minio') }}/data-{{ i }}-{{ j }}

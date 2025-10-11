@@ -35,6 +35,12 @@
   roles:
     - argocd
 
+- name: Install MetalLB
+  hosts: control_plane
+  become: yes
+  roles:
+    - metallb
+
 - name: Install Ray Operator
   hosts: control_plane
   become: yes
@@ -52,3 +58,15 @@
   become: yes
   roles:
     - minio
+
+- name: Setup USB Storage on Worker Nodes
+  hosts: workers
+  become: yes
+  roles:
+    - usb-storage
+
+- name: Configure USB Storage in Kubernetes
+  hosts: control_plane
+  become: yes
+  roles:
+    - usb-storage-k8s

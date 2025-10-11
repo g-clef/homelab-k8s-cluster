@@ -18,5 +18,15 @@ minio_storage_size: "100Gi"
 synology_nfs_server: "192.168.1.50"
 synology_nfs_path: "/volume1/minio"
 
+# USB Storage Configuration
+usb_mount_path: "/mnt/usb-storage"
+usb_filesystem_type: "ext4"
+usb_format_drive: false  # Set to true to format the USB drive (WARNING: destroys data!)
+# Note: Configure usb_device_path and usb_storage_capacity per-node in inventory/hosts.yml
+
+# MetalLB Configuration
+metallb_chart_version: "0.14.8"
+metallb_ip_range: "192.168.1.200-192.168.1.220"  # Adjust based on available IPs in your network
+
 # Argo CD Configuration
 # Configure these variables in group_vars/secrets.yml to enable app-of-apps pattern
