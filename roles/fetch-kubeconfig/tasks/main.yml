@@ -9,13 +9,24 @@
     msg: "Kubernetes cluster is not initialized. Please run the control-plane playbook first."
   when: not admin_conf.stat.exists
 
+- name: Get local user information
+  local_action:
+    module: shell
+    cmd: echo $USER
+  register: local_user
+  run_once: true
+  become: no
+  changed_when: false
+
 - name: Create local .kube directory
   local_action:
     module: file
     path: "{{ lookup('env', 'HOME') }}/.kube"
     state: directory
     mode: '0755'
+    owner: "{{ local_user.stdout }}"
   run_once: true
+  become: no
 
 - name: Fetch kubeconfig from control plane
   fetch:
@@ -23,12 +34,22 @@
     dest: "{{ lookup('env', 'HOME') }}/.kube/config-{{ inventory_hostname }}"
     flat: yes
 
+- name: Set ownership on temporary kubeconfig file
+  local_action:
+    module: file
+    path: "{{ lookup('env', 'HOME') }}/.kube/config-{{ inventory_hostname }}"
+    owner: "{{ local_user.stdout }}"
+    mode: '0600'
+  become: no
+  run_once: true
+
 - name: Read fetched kubeconfig
   local_action:
     module: slurp
     src: "{{ lookup('env', 'HOME') }}/.kube/config-{{ inventory_hostname }}"
   register: kubeconfig_content
   run_once: true
+  become: no
 
 - name: Parse and update kubeconfig with external IP
   local_action:
@@ -36,7 +57,9 @@
     content: "{{ (kubeconfig_content.content | b64decode) | regex_replace('server: https://.*:6443', 'server: https://' + ansible_host + ':6443') }}"
     dest: "{{ lookup('env', 'HOME') }}/.kube/config"
     mode: '0600'
+    owner: "{{ local_user.stdout }}"
   run_once: true
+  become: no
 
 - name: Remove temporary kubeconfig file
   local_action:
@@ -44,6 +67,7 @@
     path: "{{ lookup('env', 'HOME') }}/.kube/config-{{ inventory_hostname }}"
     state: absent
   run_once: true
+  become: no
 
 - name: Display kubeconfig location
   debug:
