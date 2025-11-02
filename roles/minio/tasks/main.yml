@@ -193,13 +193,53 @@
   register: tenant_apply
   changed_when: '"configured" in tenant_apply.stdout or "created" in tenant_apply.stdout'
 
-- name: Wait for MinIO tenant to be ready
-  command: kubectl wait --for=jsonpath='{.status.currentState}'=Initialized tenant/minio -n minio --timeout=600s
-  register: tenant_ready
-  retries: 10
-  delay: 15
-  until: tenant_ready.rc == 0
-  ignore_errors: yes
+- name: Wait a moment for resources to be created
+  pause:
+    seconds: 10
+
+- name: Check PVC status
+  command: kubectl get pvc -n minio
+  register: minio_pvcs
+  changed_when: false
+
+- name: Check PV binding status
+  command: kubectl get pv -l tenant=minio
+  register: minio_pvs_status
+  changed_when: false
+
+- name: Check MinIO pod status
+  command: kubectl get pods -n minio
+  register: minio_pods_status
+  changed_when: false
+  failed_when: false
+
+- name: Get MinIO tenant status
+  command: kubectl get tenant minio -n minio -o jsonpath='{.status.currentState}'
+  register: tenant_status
+  changed_when: false
+  failed_when: false
+
+- name: Display MinIO deployment status
+  debug:
+    msg: |
+      MinIO Tenant Status: {{ tenant_status.stdout | default('Unknown') }}
+
+      PersistentVolumeClaims:
+      {{ minio_pvcs.stdout }}
+
+      PersistentVolumes:
+      {{ minio_pvs_status.stdout }}
+
+      Pods:
+      {{ minio_pods_status.stdout }}
+
+- name: Wait for MinIO pods to be ready
+  command: kubectl wait --for=condition=ready pod -l app=minio -n minio --timeout=300s
+  register: pods_ready
+  retries: 3
+  delay: 20
+  until: pods_ready.rc == 0
+  failed_when: false
 
 - name: Get MinIO service information
   command: kubectl get svc -n minio -o wide
