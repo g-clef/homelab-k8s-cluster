@@ -105,6 +105,9 @@ ansible-playbook site.yml --tags minio
 
 # Setup USB storage (both worker node config and Kubernetes PVs)
 ansible-playbook site.yml --tags usb-storage
+
+# Fetch kubeconfig to local machine
+ansible-playbook site.yml --tags fetch-kubeconfig
 ```
 
 You can also combine multiple tags:
@@ -140,11 +143,31 @@ ansible all -m ping
 
 ### Access Kubernetes Cluster
 
-From the control plane node:
+#### Option 1: From Control Plane Node
+
+SSH to the control plane and use kubectl:
 ```bash
+ssh ansible@192.168.1.50
 kubectl get nodes
 kubectl get pods -A
 ```
+
+#### Option 2: From Your Local Machine (Recommended)
+
+Fetch the kubeconfig to your local machine so you can use kubectl without SSH:
+
+```bash
+# Fetch kubeconfig from the cluster
+ansible-playbook site.yml --tags fetch-kubeconfig
+
+# Verify kubectl works locally
+kubectl get nodes
+kubectl get pods -A
+```
+
+The kubeconfig will be saved to `~/.kube/config` on your local machine and configured to connect to the cluster at `https://192.168.1.50:6443`.
+
+**Note**: Ensure your local machine can reach the control plane IP (192.168.1.50) on port 6443.
 
 ### Access Argo CD
 
