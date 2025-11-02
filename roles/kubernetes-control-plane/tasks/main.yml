@@ -37,7 +37,9 @@
 
 - name: Save join command to file
   copy:
-    content: "{{ join_command_output.stdout }}"
+    content: |
+      #!/bin/bash
+      {{ join_command_output.stdout }}
     dest: /tmp/k8s_join_command.sh
     mode: '0755'
 

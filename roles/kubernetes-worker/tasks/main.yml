@@ -12,7 +12,7 @@
   when: not kubelet_conf.stat.exists
 
 - name: Join node to cluster
-  command: /tmp/k8s_join_command.sh
+  shell: bash /tmp/k8s_join_command.sh
   when: not kubelet_conf.stat.exists
   register: join_result
 
