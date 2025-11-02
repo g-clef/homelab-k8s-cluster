@@ -14,13 +14,14 @@
     state: present
 
 - name: Add NVIDIA CUDA repository key
-  apt_key:
-    url: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub
-    state: present
+  shell: |
+    curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/cuda-archive-keyring.gpg
 
 - name: Add NVIDIA CUDA repository
   apt_repository:
-    repo: "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
+    repo: "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
     state: present
     filename: cuda
 
@@ -30,16 +31,14 @@
   args:
     creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
 
-- name: Get distribution and architecture
-  shell: |
-    . /etc/os-release
-    echo "deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://nvidia.github.io/libnvidia-container/stable/deb/\$(dpkg --print-architecture) /"
-  register: nvidia_repo_line
+- name: Get system architecture
+  command: dpkg --print-architecture
+  register: system_arch
   changed_when: false
 
 - name: Add NVIDIA Container Toolkit repository
   apt_repository:
-    repo: "{{ nvidia_repo_line.stdout }}"
+    repo: "deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://nvidia.github.io/libnvidia-container/stable/deb/{{ system_arch.stdout }} /"
     state: present
     filename: nvidia-container-toolkit
     update_cache: yes
