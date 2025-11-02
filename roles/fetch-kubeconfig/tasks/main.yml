@@ -1,0 +1,64 @@
+---
+- name: Check if admin.conf exists on control plane
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: admin_conf
+
+- name: Fail if cluster is not initialized
+  fail:
+    msg: "Kubernetes cluster is not initialized. Please run the control-plane playbook first."
+  when: not admin_conf.stat.exists
+
+- name: Create local .kube directory
+  local_action:
+    module: file
+    path: "{{ lookup('env', 'HOME') }}/.kube"
+    state: directory
+    mode: '0755'
+  run_once: true
+
+- name: Fetch kubeconfig from control plane
+  fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ lookup('env', 'HOME') }}/.kube/config-{{ inventory_hostname }}"
+    flat: yes
+
+- name: Read fetched kubeconfig
+  local_action:
+    module: slurp
+    src: "{{ lookup('env', 'HOME') }}/.kube/config-{{ inventory_hostname }}"
+  register: kubeconfig_content
+  run_once: true
+
+- name: Parse and update kubeconfig with external IP
+  local_action:
+    module: copy
+    content: "{{ (kubeconfig_content.content | b64decode) | regex_replace('server: https://.*:6443', 'server: https://' + ansible_host + ':6443') }}"
+    dest: "{{ lookup('env', 'HOME') }}/.kube/config"
+    mode: '0600'
+  run_once: true
+
+- name: Remove temporary kubeconfig file
+  local_action:
+    module: file
+    path: "{{ lookup('env', 'HOME') }}/.kube/config-{{ inventory_hostname }}"
+    state: absent
+  run_once: true
+
+- name: Display kubeconfig location
+  debug:
+    msg: |
+      Kubeconfig has been fetched successfully!
+
+      Location: {{ lookup('env', 'HOME') }}/.kube/config
+
+      You can now use kubectl from your local machine:
+        kubectl get nodes
+        kubectl get pods -A
+
+      To use a different kubeconfig file:
+        export KUBECONFIG={{ lookup('env', 'HOME') }}/.kube/config
+
+      Or specify it in each command:
+        kubectl --kubeconfig={{ lookup('env', 'HOME') }}/.kube/config get nodes
+  run_once: true
