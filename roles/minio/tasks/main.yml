@@ -132,15 +132,10 @@
                 storageClassName: ""
         mountPath: /export
         requestAutoCert: false
-        s3:
+        features:
           bucketDNS: false
         configuration:
           name: minio-creds
-        prometheusOperator: false
-        logging:
-          anonymous: true
-          json: true
-          quiet: true
         serviceAccountName: minio-sa
         users:
           - name: minio-creds
