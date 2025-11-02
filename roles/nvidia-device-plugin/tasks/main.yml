@@ -1,12 +1,23 @@
 ---
-- name: Create nvidia-device-plugin namespace
-  shell: kubectl create namespace nvidia-device-plugin --dry-run=client -o yaml | kubectl apply -f -
-
 - name: Apply NVIDIA device plugin DaemonSet
   shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.5/nvidia-device-plugin.yml
+  register: device_plugin_apply
+  changed_when: '"created" in device_plugin_apply.stdout or "configured" in device_plugin_apply.stdout'
+
+- name: Wait for NVIDIA device plugin daemonset to be created
+  shell: kubectl get daemonset nvidia-device-plugin-daemonset -n kube-system
+  register: daemonset_check
+  retries: 10
+  delay: 3
+  until: daemonset_check.rc == 0
+  changed_when: false
 
 - name: Wait for NVIDIA device plugin pods to be ready
-  shell: kubectl wait --for=condition=ready pod -l name=nvidia-device-plugin-ds -n nvidia-device-plugin --timeout=300s
+  shell: kubectl wait --for=condition=ready pod -l name=nvidia-device-plugin-ds -n kube-system --timeout=300s
+  register: device_plugin_ready
+  retries: 3
+  delay: 10
+  until: device_plugin_ready.rc == 0
 
 - name: Verify GPU resources are available
   shell: kubectl get nodes -o=custom-columns="NODE:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu"
