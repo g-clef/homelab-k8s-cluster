@@ -233,13 +233,30 @@
       Pods:
       {{ minio_pods_status.stdout }}
 
-- name: Wait for MinIO pods to be ready
+- name: Wait for MinIO pods to be ready (may take several minutes)
   command: kubectl wait --for=condition=ready pod -l app=minio -n minio --timeout=300s
   register: pods_ready
-  retries: 3
-  delay: 20
-  until: pods_ready.rc == 0
+  changed_when: false
   failed_when: false
+
+- name: Display pod readiness status
+  debug:
+    msg: |
+      {% if pods_ready.rc == 0 %}
+      MinIO pods are ready!
+      {% else %}
+      MinIO pods are not yet ready. This is normal for first-time deployment.
+
+      Check status manually with:
+        kubectl get pods -n minio
+        kubectl describe pods -n minio
+        kubectl logs -n minio -l app=minio
+
+      Common issues:
+      - PVCs still binding to PVs
+      - NFS mount issues
+      - Image pull in progress
+      {% endif %}
 
 - name: Get MinIO service information
   command: kubectl get svc -n minio -o wide
