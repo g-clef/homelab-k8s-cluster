@@ -1,4 +1,10 @@
 ---
+- name: Deploy SSH Keys
+  hosts: k8s_cluster
+  become: yes
+  roles:
+    - ssh-keys
+
 - name: Setup Kubernetes Cluster
   hosts: k8s_cluster
   become: yes

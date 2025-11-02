@@ -1,0 +1,102 @@
+---
+- name: Add MetalLB Helm repository
+  command: helm repo add metallb https://metallb.github.io/metallb
+  register: helm_repo_add
+  changed_when: '"has been added" in helm_repo_add.stdout'
+  failed_when:
+    - helm_repo_add.rc != 0
+    - '"already exists" not in helm_repo_add.stderr'
+
+- name: Update Helm repositories
+  command: helm repo update
+  changed_when: false
+
+- name: Create metallb-system namespace
+  command: kubectl create namespace metallb-system
+  register: create_namespace
+  failed_when:
+    - create_namespace.rc != 0
+    - '"already exists" not in create_namespace.stderr'
+  changed_when: create_namespace.rc == 0
+
+- name: Install MetalLB using Helm
+  command: >
+    helm install metallb metallb/metallb
+    --namespace metallb-system
+    --version {{ metallb_chart_version | default('0.14.8') }}
+  register: metallb_install
+  failed_when:
+    - metallb_install.rc != 0
+    - '"already exists" not in metallb_install.stderr'
+  changed_when: metallb_install.rc == 0
+
+- name: Wait for MetalLB controller to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=controller -n metallb-system --timeout=300s
+  register: metallb_ready
+  retries: 5
+  delay: 10
+  until: metallb_ready.rc == 0
+
+- name: Wait for MetalLB speaker to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=speaker -n metallb-system --timeout=300s
+  register: speaker_ready
+  retries: 5
+  delay: 10
+  until: speaker_ready.rc == 0
+
+- name: Create MetalLB IPAddressPool configuration
+  copy:
+    dest: /tmp/metallb-ippool.yaml
+    content: |
+      apiVersion: metallb.io/v1beta1
+      kind: IPAddressPool
+      metadata:
+        name: default-pool
+        namespace: metallb-system
+      spec:
+        addresses:
+        - {{ metallb_ip_range }}
+      ---
+      apiVersion: metallb.io/v1beta1
+      kind: L2Advertisement
+      metadata:
+        name: default
+        namespace: metallb-system
+      spec:
+        ipAddressPools:
+        - default-pool
+
+- name: Apply MetalLB IPAddressPool
+  command: kubectl apply -f /tmp/metallb-ippool.yaml
+  register: ippool_apply
+  changed_when: '"configured" in ippool_apply.stdout or "created" in ippool_apply.stdout'
+
+- name: Clean up temporary files
+  file:
+    path: /tmp/metallb-ippool.yaml
+    state: absent
+
+- name: Display MetalLB status
+  debug:
+    msg: |
+      MetalLB installed successfully!
+
+      IP Address Pool: {{ metallb_ip_range }}
+
+      To verify the installation:
+      kubectl get pods -n metallb-system
+      kubectl get ipaddresspool -n metallb-system
+
+      To use MetalLB, create services with type: LoadBalancer
+      Example:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: my-service
+        spec:
+          type: LoadBalancer
+          ports:
+            - port: 80
+              targetPort: 8080
+          selector:
+            app: my-app

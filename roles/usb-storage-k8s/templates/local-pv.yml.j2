@@ -1,0 +1,32 @@
+---
+{% for host in groups['workers'] %}
+{% if hostvars[host].usb_device_path is defined %}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-usb-{{ hostvars[host].inventory_hostname }}
+  labels:
+    type: local
+    storage-tier: usb
+    node: {{ hostvars[host].inventory_hostname }}
+spec:
+  capacity:
+    storage: {{ hostvars[host].usb_storage_capacity | default('100Gi') }}
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-usb-storage
+  local:
+    path: {{ hostvars[host].usb_mount_path }}/k8s-local-storage
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - {{ hostvars[host].inventory_hostname }}
+---
+{% endif %}
+{% endfor %}

@@ -1,0 +1,115 @@
+---
+# USB Storage Setup Tasks
+# This role configures USB drives as local persistent storage for Kubernetes
+
+- name: Install required packages for USB drive management
+  apt:
+    name:
+      - parted
+      - usbutils
+      - util-linux
+    state: present
+    update_cache: yes
+
+- name: Set device source based on UUID or path
+  set_fact:
+    usb_mount_source: "{{ 'UUID=' + usb_device_uuid if usb_device_uuid is defined else usb_device_path }}"
+  when: usb_device_uuid is defined or usb_device_path is defined
+
+- name: Check if USB device exists (by path)
+  stat:
+    path: "{{ usb_device_path }}"
+  register: usb_device
+  when: usb_device_path is defined and usb_device_uuid is not defined
+
+- name: Get device path from UUID
+  command: blkid -U {{ usb_device_uuid }}
+  register: uuid_device_path
+  changed_when: false
+  failed_when: false
+  when: usb_device_uuid is defined
+
+- name: Set device path fact from UUID lookup
+  set_fact:
+    resolved_usb_device_path: "{{ uuid_device_path.stdout }}"
+  when:
+    - usb_device_uuid is defined
+    - uuid_device_path.rc == 0
+
+- name: Set device path fact from direct path
+  set_fact:
+    resolved_usb_device_path: "{{ usb_device_path }}"
+  when:
+    - usb_device_path is defined
+    - usb_device_uuid is not defined
+
+- name: Display warning if USB device not found by path
+  debug:
+    msg: "WARNING: USB device {{ usb_device_path }} not found on {{ inventory_hostname }}. Skipping storage setup."
+  when:
+    - usb_device_path is defined
+    - usb_device_uuid is not defined
+    - not usb_device.stat.exists
+
+- name: Display warning if USB device not found by UUID
+  debug:
+    msg: "WARNING: USB device with UUID {{ usb_device_uuid }} not found on {{ inventory_hostname }}. Skipping storage setup."
+  when:
+    - usb_device_uuid is defined
+    - (uuid_device_path.rc != 0 or uuid_device_path.stdout == "")
+
+- name: Create filesystem on USB drive if not already formatted
+  filesystem:
+    fstype: "{{ usb_filesystem_type }}"
+    dev: "{{ resolved_usb_device_path }}"
+    opts: -L {{ inventory_hostname }}-usb
+  when:
+    - resolved_usb_device_path is defined
+    - usb_format_drive | default(false) | bool
+
+- name: Create mount point directory
+  file:
+    path: "{{ usb_mount_path }}"
+    state: directory
+    mode: '0755'
+  when: usb_device_path is defined or usb_device_uuid is defined
+
+- name: Mount USB drive (adds to /etc/fstab for persistence)
+  mount:
+    path: "{{ usb_mount_path }}"
+    src: "{{ usb_mount_source }}"
+    fstype: "{{ usb_filesystem_type }}"
+    opts: defaults,nofail
+    state: mounted
+  when:
+    - usb_mount_source is defined
+    - resolved_usb_device_path is defined
+  register: mount_result
+
+- name: Set permissions on mount point
+  file:
+    path: "{{ usb_mount_path }}"
+    state: directory
+    mode: '0777'
+    owner: root
+    group: root
+  when:
+    - usb_device_path is defined
+    - mount_result is succeeded
+
+- name: Create Kubernetes local storage directory
+  file:
+    path: "{{ usb_mount_path }}/k8s-local-storage"
+    state: directory
+    mode: '0777'
+  when:
+    - usb_device_path is defined
+    - mount_result is succeeded
+
+- name: Display USB storage setup status
+  debug:
+    msg: |
+      USB Storage configured on {{ inventory_hostname }}:
+      - Device: {{ usb_device_path | default('not configured') }}
+      - Mount point: {{ usb_mount_path }}
+      - Status: {{ 'mounted' if (mount_result is defined and mount_result is succeeded) else 'not mounted' }}

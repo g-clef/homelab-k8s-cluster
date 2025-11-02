@@ -1,0 +1,60 @@
+---
+# Kubernetes USB Storage Configuration Tasks
+# This role creates StorageClass and PersistentVolumes for USB storage
+
+- name: Create temporary directory for manifests
+  file:
+    path: /tmp/usb-storage-manifests
+    state: directory
+    mode: '0755'
+
+- name: Generate StorageClass manifest
+  template:
+    src: storageclass.yml.j2
+    dest: /tmp/usb-storage-manifests/storageclass.yml
+    mode: '0644'
+
+- name: Generate PersistentVolume manifests
+  template:
+    src: local-pv.yml.j2
+    dest: /tmp/usb-storage-manifests/local-pv.yml
+    mode: '0644'
+
+- name: Apply StorageClass
+  command: kubectl apply -f /tmp/usb-storage-manifests/storageclass.yml
+  register: storageclass_result
+  changed_when: '"created" in storageclass_result.stdout or "configured" in storageclass_result.stdout'
+
+- name: Apply PersistentVolumes
+  command: kubectl apply -f /tmp/usb-storage-manifests/local-pv.yml
+  register: pv_result
+  changed_when: '"created" in pv_result.stdout or "configured" in pv_result.stdout'
+
+- name: Wait for PersistentVolumes to be available
+  command: kubectl get pv -l type=local,storage-tier=usb -o jsonpath='{.items[*].metadata.name}'
+  register: pv_list
+  until: pv_list.stdout != ""
+  retries: 5
+  delay: 2
+  ignore_errors: yes
+
+- name: Get PersistentVolume status
+  command: kubectl get pv -l type=local,storage-tier=usb -o wide
+  register: pv_status
+  ignore_errors: yes
+
+- name: Display USB storage setup status
+  debug:
+    msg: |
+      USB Storage configured in Kubernetes:
+      - StorageClass: local-usb-storage
+      - PersistentVolumes:
+      {{ pv_status.stdout | indent(2, first=true) }}
+
+      To use USB storage in a pod, create a PersistentVolumeClaim with:
+        storageClassName: local-usb-storage
+
+- name: Clean up temporary manifests
+  file:
+    path: /tmp/usb-storage-manifests
+    state: absent
