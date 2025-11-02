@@ -2,77 +2,103 @@
 - name: Deploy SSH Keys
   hosts: k8s_cluster
   become: yes
+  tags:
+    - ssh-keys
   roles:
     - ssh-keys
 
 - name: Setup Kubernetes Cluster
   hosts: k8s_cluster
   become: yes
+  tags:
+    - prerequisites
   roles:
     - kubernetes-prerequisites
 
 - name: Setup GPU Prerequisites
   hosts: gpu_workers
   become: yes
+  tags:
+    - gpu-prerequisites
   roles:
     - gpu-prerequisites
 
 - name: Initialize Control Plane
   hosts: control_plane
   become: yes
+  tags:
+    - control-plane
   roles:
     - kubernetes-control-plane
 
 - name: Join Worker Nodes
   hosts: workers:gpu_workers
   become: yes
+  tags:
+    - workers
   roles:
     - kubernetes-worker
 
 - name: Label GPU Nodes
   hosts: gpu_workers
   become: yes
+  tags:
+    - gpu-labeling
   roles:
     - gpu-node-labeling
 
 - name: Install Argo CD
   hosts: control_plane
   become: yes
+  tags:
+    - argocd
   roles:
     - argocd
 
 - name: Install MetalLB
   hosts: control_plane
   become: yes
+  tags:
+    - metallb
   roles:
     - metallb
 
 - name: Install Ray Operator
   hosts: control_plane
   become: yes
+  tags:
+    - ray
   roles:
     - ray-operator
 
 - name: Install NVIDIA Device Plugin
   hosts: control_plane
   become: yes
+  tags:
+    - gpu-plugin
   roles:
     - nvidia-device-plugin
 
 - name: Install MinIO
   hosts: control_plane
   become: yes
+  tags:
+    - minio
   roles:
     - minio
 
 - name: Setup USB Storage on Worker Nodes
   hosts: workers
   become: yes
+  tags:
+    - usb-storage
   roles:
     - usb-storage
 
 - name: Configure USB Storage in Kubernetes
   hosts: control_plane
   become: yes
+  tags:
+    - usb-storage
   roles:
     - usb-storage-k8s

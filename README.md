@@ -67,15 +67,67 @@ ansible-playbook site.yml
 
 ### Deploy specific components
 
+You can use tags to run specific parts of the playbook:
+
 ```bash
-# Only setup prerequisites
+# Deploy SSH keys
+ansible-playbook site.yml --tags ssh-keys
+
+# Setup prerequisites on all nodes (containerd, kubelet, etc.)
 ansible-playbook site.yml --tags prerequisites
 
-# Only setup control plane
+# Setup GPU prerequisites (NVIDIA drivers, container toolkit)
+ansible-playbook site.yml --tags gpu-prerequisites
+
+# Initialize control plane
+ansible-playbook site.yml --tags control-plane
+
+# Join worker nodes to cluster
+ansible-playbook site.yml --tags workers
+
+# Label GPU nodes
+ansible-playbook site.yml --tags gpu-labeling
+
+# Install Argo CD
+ansible-playbook site.yml --tags argocd
+
+# Install MetalLB load balancer
+ansible-playbook site.yml --tags metallb
+
+# Install Ray Operator
+ansible-playbook site.yml --tags ray
+
+# Install NVIDIA Device Plugin
+ansible-playbook site.yml --tags gpu-plugin
+
+# Install MinIO
+ansible-playbook site.yml --tags minio
+
+# Setup USB storage (both worker node config and Kubernetes PVs)
+ansible-playbook site.yml --tags usb-storage
+```
+
+You can also combine multiple tags:
+
+```bash
+# Deploy only Argo CD and MetalLB
+ansible-playbook site.yml --tags argocd,metallb
+
+# Setup full cluster infrastructure (skip applications)
+ansible-playbook site.yml --tags prerequisites,control-plane,workers
+```
+
+You can also use `--limit` to target specific hosts:
+
+```bash
+# Only setup control plane node
 ansible-playbook site.yml --limit control_plane
 
 # Only setup worker nodes
 ansible-playbook site.yml --limit workers
+
+# Only setup GPU worker nodes
+ansible-playbook site.yml --limit gpu_workers
 ```
 
 ### Test connectivity
