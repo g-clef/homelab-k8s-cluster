@@ -13,6 +13,7 @@
       - gnupg
       - lsb-release
       - software-properties-common
+      - nfs-common
     state: present
 
 - name: Disable swap
