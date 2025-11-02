@@ -71,6 +71,7 @@
   file:
     path: /tmp/argocd-apps
     state: directory
+  when: argocd_repo_url is defined
 
 - name: Create app-of-apps Application manifest
   copy:
@@ -96,6 +97,7 @@
             selfHeal: true
           syncOptions:
             - CreateNamespace=true
+  when: argocd_repo_url is defined
 
 - name: Apply app-of-apps configuration
   command: kubectl apply -f /tmp/argocd-apps/app-of-apps.yaml
