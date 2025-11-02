@@ -13,8 +13,6 @@
 
 - name: Remove all NVIDIA-related repository files
   shell: rm -f /etc/apt/sources.list.d/*cuda* /etc/apt/sources.list.d/*nvidia*
-  args:
-    warn: false
 
 - name: Remove old NVIDIA keyrings
   file:
