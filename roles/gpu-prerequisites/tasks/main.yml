@@ -1,4 +1,14 @@
 ---
+- name: Remove old NVIDIA repository files and keyrings
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/cuda.list
+    - /etc/apt/sources.list.d/nvidia-container-toolkit.list
+    - /usr/share/keyrings/cuda-archive-keyring.gpg
+    - /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
 - name: Update package cache
   apt:
     update_cache: yes
@@ -13,31 +23,26 @@
       - gnupg
     state: present
 
-- name: Remove old NVIDIA repository files
-  file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /etc/apt/sources.list.d/cuda.list
-    - /etc/apt/sources.list.d/nvidia-container-toolkit.list
-
 - name: Add NVIDIA CUDA repository key
   shell: |
     curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
   args:
     creates: /usr/share/keyrings/cuda-archive-keyring.gpg
+  register: cuda_key_added
 
 - name: Add NVIDIA CUDA repository
   apt_repository:
     repo: "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
     state: present
     filename: cuda
+    update_cache: yes
 
 - name: Add NVIDIA Container Toolkit repository key
   shell: |
     curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
   args:
     creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  register: toolkit_key_added
 
 - name: Get system architecture
   command: dpkg --print-architecture
