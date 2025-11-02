@@ -13,15 +13,35 @@
       - gnupg
     state: present
 
-- name: Add NVIDIA package repository key
+- name: Add NVIDIA CUDA repository key
   apt_key:
     url: https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub
     state: present
 
-- name: Add NVIDIA package repository
+- name: Add NVIDIA CUDA repository
   apt_repository:
     repo: "deb https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /"
     state: present
+    filename: cuda
+
+- name: Add NVIDIA Container Toolkit repository key
+  shell: |
+    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+
+- name: Get distribution and architecture
+  shell: |
+    . /etc/os-release
+    echo "deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://nvidia.github.io/libnvidia-container/stable/deb/\$(dpkg --print-architecture) /"
+  register: nvidia_repo_line
+  changed_when: false
+
+- name: Add NVIDIA Container Toolkit repository
+  apt_repository:
+    repo: "{{ nvidia_repo_line.stdout }}"
+    state: present
+    filename: nvidia-container-toolkit
     update_cache: yes
 
 - name: Install NVIDIA driver
@@ -32,39 +52,22 @@
 
 - name: Install NVIDIA container toolkit
   apt:
-    name:
-      - nvidia-container-toolkit
-      - nvidia-container-runtime
+    name: nvidia-container-toolkit
     state: present
+    update_cache: yes
 
-- name: Configure containerd for NVIDIA runtime
-  blockinfile:
-    path: /etc/containerd/config.toml
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - NVIDIA"
-    block: |
-      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
-        privileged_without_host_devices = false
-        runtime_engine = ""
-        runtime_root = ""
-        runtime_type = "io.containerd.runc.v2"
-        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
-          BinaryName = "/usr/bin/nvidia-container-runtime"
-    create: yes
-  notify: restart containerd
-
-- name: Set nvidia as default runtime in containerd
-  lineinfile:
-    path: /etc/containerd/config.toml
-    regexp: '^(\s*)default_runtime_name = .*$'
-    line: '\1default_runtime_name = "nvidia"'
-    backrefs: yes
-  notify: restart containerd
+- name: Configure containerd for NVIDIA runtime using nvidia-ctk
+  shell: nvidia-ctk runtime configure --runtime=containerd
+  args:
+    creates: /etc/containerd/config.toml.bak
+  register: nvidia_ctk_configure
 
 - name: Restart containerd service
   systemd:
     name: containerd
     state: restarted
     enabled: yes
+  when: nvidia_ctk_configure.changed
 
 - name: Reboot system if NVIDIA driver was installed
   reboot:
