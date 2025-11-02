@@ -29,15 +29,13 @@
 
 - name: Install MinIO Operator
   command: >
-    helm install minio-operator minio-operator/operator
+    helm upgrade --install minio-operator minio-operator/operator
     --namespace minio-operator
+    --create-namespace
     --version {{ minio_operator_version | default('6.0.3') }}
     --set console.enabled=true
   register: minio_operator_install
-  failed_when:
-    - minio_operator_install.rc != 0
-    - '"already exists" not in minio_operator_install.stderr'
-  changed_when: minio_operator_install.rc == 0
+  changed_when: '"has been upgraded" in minio_operator_install.stdout or "has been installed" in minio_operator_install.stdout'
 
 - name: Wait for MinIO Operator to be ready
   command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=operator -n minio-operator --timeout=300s
