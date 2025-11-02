@@ -1,17 +1,35 @@
 ---
-- name: Remove old NVIDIA repository files and keyrings
+- name: Remove NVIDIA repository entries from main sources.list
+  lineinfile:
+    path: /etc/apt/sources.list
+    regexp: '.*developer\.download\.nvidia\.com.*'
+    state: absent
+
+- name: Remove NVIDIA Container Toolkit entries from main sources.list
+  lineinfile:
+    path: /etc/apt/sources.list
+    regexp: '.*nvidia\.github\.io/libnvidia-container.*'
+    state: absent
+
+- name: Remove all NVIDIA-related repository files
+  shell: rm -f /etc/apt/sources.list.d/*cuda* /etc/apt/sources.list.d/*nvidia*
+  args:
+    warn: false
+
+- name: Remove old NVIDIA keyrings
   file:
     path: "{{ item }}"
     state: absent
   loop:
-    - /etc/apt/sources.list.d/cuda.list
-    - /etc/apt/sources.list.d/nvidia-container-toolkit.list
     - /usr/share/keyrings/cuda-archive-keyring.gpg
     - /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+    - /etc/apt/trusted.gpg.d/cuda-archive-keyring.gpg
+    - /etc/apt/trusted.gpg.d/nvidia-container-toolkit-keyring.gpg
 
-- name: Update package cache
+- name: Update package cache after cleanup
   apt:
     update_cache: yes
+  ignore_errors: yes
 
 - name: Install prerequisites for NVIDIA drivers
   apt:
@@ -26,9 +44,6 @@
 - name: Add NVIDIA CUDA repository key
   shell: |
     curl -fsSL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/3bf863cc.pub | gpg --dearmor -o /usr/share/keyrings/cuda-archive-keyring.gpg
-  args:
-    creates: /usr/share/keyrings/cuda-archive-keyring.gpg
-  register: cuda_key_added
 
 - name: Add NVIDIA CUDA repository
   apt_repository:
@@ -40,9 +55,6 @@
 - name: Add NVIDIA Container Toolkit repository key
   shell: |
     curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-  args:
-    creates: /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-  register: toolkit_key_added
 
 - name: Get system architecture
   command: dpkg --print-architecture
