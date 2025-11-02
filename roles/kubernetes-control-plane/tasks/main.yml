@@ -9,6 +9,7 @@
     kubeadm init
     --pod-network-cidr={{ pod_network_cidr }}
     --apiserver-advertise-address={{ ansible_host }}
+    --ignore-preflight-errors=NumCPU
   when: not k8s_admin_conf.stat.exists
   register: kubeadm_init
 
