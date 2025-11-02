@@ -55,6 +55,45 @@
   register: storageclass_apply
   changed_when: '"configured" in storageclass_apply.stdout or "created" in storageclass_apply.stdout'
 
+- name: Check if MinIO PVs already exist
+  shell: kubectl get pv -l tenant=minio -o name 2>/dev/null || true
+  register: existing_minio_pvs
+  changed_when: false
+
+- name: Delete existing MinIO PVs if they exist (to handle config changes)
+  shell: |
+    for pv in $(kubectl get pv -l tenant=minio -o name); do
+      # Check if PV is Available (not bound)
+      status=$(kubectl get $pv -o jsonpath='{.status.phase}')
+      if [ "$status" = "Available" ]; then
+        kubectl delete $pv
+      else
+        echo "PV $pv is in status $status, skipping deletion"
+      fi
+    done
+  when: existing_minio_pvs.stdout != ""
+  register: pv_cleanup
+  changed_when: '"deleted" in pv_cleanup.stdout'
+
+- name: Check for bound MinIO PVs that may need manual intervention
+  shell: kubectl get pv -l tenant=minio -o jsonpath='{range .items[?(@.status.phase=="Bound")]}{.metadata.name}{"\n"}{end}'
+  register: bound_minio_pvs
+  changed_when: false
+  failed_when: false
+
+- name: Display warning if bound PVs exist
+  debug:
+    msg: |
+      WARNING: The following MinIO PVs are bound and cannot be automatically recreated:
+      {{ bound_minio_pvs.stdout }}
+
+      If you need to change the NFS server configuration:
+      1. Delete the MinIO tenant: kubectl delete tenant minio -n minio
+      2. Delete the bound PVCs: kubectl delete pvc -n minio --all
+      3. Delete the PVs: kubectl delete pv -l tenant=minio
+      4. Re-run this playbook
+  when: bound_minio_pvs.stdout != ""
+
 - name: Create NFS PersistentVolumes for MinIO
   copy:
     dest: /tmp/minio-nfs-pvs.yaml
@@ -92,6 +131,9 @@
   command: kubectl apply -f /tmp/minio-nfs-pvs.yaml
   register: pv_apply
   changed_when: '"configured" in pv_apply.stdout or "created" in pv_apply.stdout'
+  failed_when:
+    - pv_apply.rc != 0
+    - '"immutable" not in pv_apply.stderr'
 
 - name: Create MinIO tenant manifest with NFS storage
   copy:
