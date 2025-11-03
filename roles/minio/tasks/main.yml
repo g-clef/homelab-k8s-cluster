@@ -135,6 +135,30 @@
     - pv_apply.rc != 0
     - '"immutable" not in pv_apply.stderr'
 
+- name: Display NFS directory setup instructions
+  debug:
+    msg: |
+      IMPORTANT: Ensure NFS directories exist on Synology NAS!
+
+      You need to create the following directories on your Synology NAS at {{ synology_nfs_server | default('192.168.1.50') }}:
+
+      {% for i in range(minio_servers | default(1) | int) %}
+      {% for j in range(minio_volumes_per_server | default(1) | int) %}
+      {{ synology_nfs_path | default('/volume1/minio') }}/data-{{ i }}-{{ j }}
+      {% endfor %}
+      {% endfor %}
+
+      To create them, SSH to your Synology NAS and run:
+      {% for i in range(minio_servers | default(1) | int) %}
+      {% for j in range(minio_volumes_per_server | default(1) | int) %}
+      sudo mkdir -p {{ synology_nfs_path | default('/volume1/minio') }}/data-{{ i }}-{{ j }}
+      sudo chmod 777 {{ synology_nfs_path | default('/volume1/minio') }}/data-{{ i }}-{{ j }}
+      {% endfor %}
+      {% endfor %}
+
+      Or run this one-liner:
+      ssh admin@{{ synology_nfs_server | default('192.168.1.50') }} "{% for i in range(minio_servers | default(1) | int) %}{% for j in range(minio_volumes_per_server | default(1) | int) %}sudo mkdir -p {{ synology_nfs_path | default('/volume1/minio') }}/data-{{ i }}-{{ j }} && sudo chmod 777 {{ synology_nfs_path | default('/volume1/minio') }}/data-{{ i }}-{{ j }}{% if not loop.last %} && {% endif %}{% endfor %}{% endfor %}"
+
 - name: Create MinIO credentials secret
   copy:
     dest: /tmp/minio-creds-secret.yaml
