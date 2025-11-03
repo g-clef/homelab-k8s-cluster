@@ -135,9 +135,9 @@
     - pv_apply.rc != 0
     - '"immutable" not in pv_apply.stderr'
 
-- name: Create MinIO tenant manifest with NFS storage
+- name: Create MinIO credentials secret
   copy:
-    dest: /tmp/minio-tenant.yaml
+    dest: /tmp/minio-creds-secret.yaml
     content: |
       apiVersion: v1
       kind: Secret
@@ -146,9 +146,19 @@
         namespace: minio
       type: Opaque
       stringData:
-        accesskey: {{ minio_root_user | default('minioadmin') }}
-        secretkey: {{ minio_root_password | default('minioadmin') }}
-      ---
+        config.env: |
+          export MINIO_ROOT_USER="{{ minio_root_user | default('minioadmin') }}"
+          export MINIO_ROOT_PASSWORD="{{ minio_root_password | default('minioadmin') }}"
+
+- name: Apply MinIO credentials secret
+  command: kubectl apply -f /tmp/minio-creds-secret.yaml
+  register: secret_apply
+  changed_when: '"configured" in secret_apply.stdout or "created" in secret_apply.stdout'
+
+- name: Create MinIO tenant manifest with NFS storage
+  copy:
+    dest: /tmp/minio-tenant.yaml
+    content: |
       apiVersion: minio.min.io/v2
       kind: Tenant
       metadata:
