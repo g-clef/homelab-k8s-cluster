@@ -94,6 +94,9 @@ ansible-playbook site.yml --tags argocd
 # Install MetalLB load balancer
 ansible-playbook site.yml --tags metallb
 
+# Install Metrics Server (for kubectl top commands)
+ansible-playbook site.yml --tags metrics-server
+
 # Install Ray Operator
 ansible-playbook site.yml --tags ray
 
@@ -204,6 +207,27 @@ kubectl get ipaddresspool -n metallb-system
 # Check L2 advertisement configuration
 kubectl get l2advertisement -n metallb-system
 ```
+
+### Verify Metrics Server
+
+```bash
+# Check metrics server pod is running
+kubectl get pods -n kube-system -l k8s-app=metrics-server
+
+# View node resource usage
+kubectl top nodes
+
+# View pod resource usage across all namespaces
+kubectl top pods -A
+
+# View pod resource usage in a specific namespace
+kubectl top pods -n kube-system
+```
+
+The Metrics Server enables resource monitoring and is used by:
+- Horizontal Pod Autoscaler (HPA)
+- Vertical Pod Autoscaler (VPA)
+- `kubectl top` commands for viewing resource usage
 
 ### Using LoadBalancer Services
 

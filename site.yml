@@ -72,6 +72,15 @@
   roles:
     - metallb
 
+- name: Install Metrics Server
+  hosts: control_plane
+  become: yes
+  tags:
+    - metrics-server
+    - metrics
+  roles:
+    - metrics-server
+
 - name: Install Ray Operator
   hosts: control_plane
   become: yes

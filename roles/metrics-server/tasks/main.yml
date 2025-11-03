@@ -1,0 +1,58 @@
+---
+- name: Download metrics-server manifest
+  get_url:
+    url: https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+    dest: /tmp/metrics-server.yaml
+    mode: '0644'
+
+- name: Add insecure TLS flag for home lab environment
+  shell: |
+    sed -i '/- --metric-resolution=15s/a\        - --kubelet-insecure-tls' /tmp/metrics-server.yaml
+  args:
+    warn: false
+
+- name: Apply metrics-server manifest
+  command: kubectl apply -f /tmp/metrics-server.yaml
+  register: metrics_server_apply
+  changed_when: '"created" in metrics_server_apply.stdout or "configured" in metrics_server_apply.stdout'
+
+- name: Wait for metrics-server to be ready
+  command: kubectl wait --for=condition=ready pod -l k8s-app=metrics-server -n kube-system --timeout=300s
+  register: metrics_server_ready
+  retries: 5
+  delay: 10
+  until: metrics_server_ready.rc == 0
+
+- name: Verify metrics-server is working
+  command: kubectl top nodes
+  register: top_nodes
+  changed_when: false
+  failed_when: false
+  retries: 3
+  delay: 10
+  until: top_nodes.rc == 0
+
+- name: Display metrics-server status
+  debug:
+    msg: |
+      Metrics Server installed successfully!
+
+      {% if top_nodes.rc == 0 %}
+      Node metrics are available:
+      {{ top_nodes.stdout }}
+
+      You can now use:
+        kubectl top nodes
+        kubectl top pods -A
+        kubectl top pods -n <namespace>
+      {% else %}
+      Metrics Server is installed but metrics are not yet available.
+      This is normal - it may take a few minutes for metrics to be collected.
+
+      Try again in a minute:
+        kubectl top nodes
+      {% endif %}
+
+      To verify:
+        kubectl get apiservice v1beta1.metrics.k8s.io -o yaml
+        kubectl get deployment metrics-server -n kube-system
