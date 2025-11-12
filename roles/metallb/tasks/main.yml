@@ -37,13 +37,10 @@
 
 - name: Install MetalLB using Helm
   command: >
-    helm install metallb metallb/metallb
+    helm upgrade --install metallb metallb/metallb
     --namespace metallb-system
     --version {{ metallb_chart_version | default('0.14.8') }}
   register: metallb_install
-  failed_when:
-    - metallb_install.rc != 0
-    - '"already exists" not in metallb_install.stderr'
   changed_when: metallb_install.rc == 0
 
 - name: Wait for MetalLB controller to be ready
