@@ -1,0 +1,134 @@
+---
+# Expose Argo CD and MinIO services via MetalLB LoadBalancer with static IPs
+
+- name: Patch Argo CD server service to use LoadBalancer
+  shell: |
+    kubectl patch svc argocd-server -n argocd -p '{
+      "spec": {
+        "type": "LoadBalancer"
+      },
+      "metadata": {
+        "annotations": {
+          "metallb.universe.tf/loadBalancerIPs": "{{ argocd_loadbalancer_ip }}"
+        }
+      }
+    }'
+  register: argocd_patch_result
+  changed_when: "'patched' in argocd_patch_result.stdout or 'configured' in argocd_patch_result.stdout"
+  failed_when: "argocd_patch_result.rc != 0 and 'NotFound' not in argocd_patch_result.stderr"
+
+- name: Wait for Argo CD LoadBalancer IP assignment
+  shell: kubectl get svc argocd-server -n argocd -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: argocd_lb_ip
+  until: argocd_lb_ip.stdout != ""
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Display Argo CD access information
+  debug:
+    msg: "Argo CD is now accessible at https://{{ argocd_lb_ip.stdout }}"
+
+# MinIO Console LoadBalancer Service
+- name: Create MinIO Console LoadBalancer service manifest
+  copy:
+    dest: /tmp/minio-console-lb.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: minio-console-lb
+        namespace: minio
+        annotations:
+          metallb.universe.tf/loadBalancerIPs: "{{ minio_console_loadbalancer_ip }}"
+        labels:
+          app: minio
+          service: console
+      spec:
+        type: LoadBalancer
+        ports:
+          - name: http-console
+            port: 9001
+            targetPort: 9001
+            protocol: TCP
+        selector:
+          v1.min.io/tenant: minio
+
+- name: Apply MinIO Console LoadBalancer service
+  shell: kubectl apply -f /tmp/minio-console-lb.yaml
+  register: minio_console_apply
+  changed_when: "'created' in minio_console_apply.stdout or 'configured' in minio_console_apply.stdout"
+
+- name: Wait for MinIO Console LoadBalancer IP assignment
+  shell: kubectl get svc minio-console-lb -n minio -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: minio_console_lb_ip
+  until: minio_console_lb_ip.stdout != ""
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Display MinIO Console access information
+  debug:
+    msg: "MinIO Console is now accessible at http://{{ minio_console_lb_ip.stdout }}:9001"
+
+# MinIO S3 API LoadBalancer Service
+- name: Create MinIO S3 API LoadBalancer service manifest
+  copy:
+    dest: /tmp/minio-s3-lb.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: minio-s3-lb
+        namespace: minio
+        annotations:
+          metallb.universe.tf/loadBalancerIPs: "{{ minio_s3_loadbalancer_ip }}"
+        labels:
+          app: minio
+          service: s3-api
+      spec:
+        type: LoadBalancer
+        ports:
+          - name: http-minio
+            port: 9000
+            targetPort: 9000
+            protocol: TCP
+        selector:
+          v1.min.io/tenant: minio
+
+- name: Apply MinIO S3 API LoadBalancer service
+  shell: kubectl apply -f /tmp/minio-s3-lb.yaml
+  register: minio_s3_apply
+  changed_when: "'created' in minio_s3_apply.stdout or 'configured' in minio_s3_apply.stdout"
+
+- name: Wait for MinIO S3 API LoadBalancer IP assignment
+  shell: kubectl get svc minio-s3-lb -n minio -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: minio_s3_lb_ip
+  until: minio_s3_lb_ip.stdout != ""
+  retries: 30
+  delay: 5
+  changed_when: false
+
+- name: Display MinIO S3 API access information
+  debug:
+    msg: "MinIO S3 API is now accessible at http://{{ minio_s3_lb_ip.stdout }}:9000"
+
+- name: Cleanup temporary manifest files
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/minio-console-lb.yaml
+    - /tmp/minio-s3-lb.yaml
+
+# Summary
+- name: Display all service endpoints
+  debug:
+    msg:
+      - "=== External Service Access ==="
+      - "Argo CD UI: https://{{ argocd_lb_ip.stdout }}"
+      - "MinIO Console: http://{{ minio_console_lb_ip.stdout }}:9001"
+      - "MinIO S3 API: http://{{ minio_s3_lb_ip.stdout }}:9000"
+      - ""
+      - "Argo CD credentials: Check initial secret with 'kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath={.data.password} | base64 -d'"
+      - "MinIO credentials: Default minioadmin/minioadmin or check secrets.yml"

@@ -105,6 +105,15 @@
   roles:
     - minio
 
+- name: Expose Services via LoadBalancer
+  hosts: control_plane
+  become: yes
+  tags:
+    - expose-services
+    - loadbalancer
+  roles:
+    - expose-services
+
 - name: Setup USB Storage on Worker Nodes
   hosts: workers
   become: yes

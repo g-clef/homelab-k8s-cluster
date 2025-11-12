@@ -15,7 +15,7 @@ minio_storage_size: "100Gi"
 # MinIO credentials are stored in group_vars/secrets.yml
 
 # Synology NAS NFS Configuration for MinIO
-synology_nfs_server: "192.168.1.50"
+synology_nfs_server: "192.168.1.197"
 synology_nfs_path: "/volume1/minio"
 
 # USB Storage Configuration
@@ -27,6 +27,11 @@ usb_format_drive: false  # Set to true to format the USB drive (WARNING: destroy
 # MetalLB Configuration
 metallb_chart_version: "0.14.8"
 metallb_ip_range: "192.168.1.200-192.168.1.220"  # Adjust based on available IPs in your network
+
+# LoadBalancer Service IPs (from MetalLB pool)
+argocd_loadbalancer_ip: "192.168.1.200"
+minio_console_loadbalancer_ip: "192.168.1.201"
+minio_s3_loadbalancer_ip: "192.168.1.202"
 
 # Argo CD Configuration
 # Configure these variables in group_vars/secrets.yml to enable app-of-apps pattern
