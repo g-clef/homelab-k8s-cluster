@@ -29,6 +29,9 @@
   command: kubectl apply -f /tmp/usb-storage-manifests/local-pv.yml
   register: pv_result
   changed_when: '"created" in pv_result.stdout or "configured" in pv_result.stdout'
+  failed_when:
+    - pv_result.rc != 0
+    - '"no objects passed to apply" not in pv_result.stderr'
 
 - name: Wait for PersistentVolumes to be available
   command: kubectl get pv -l type=local,storage-tier=usb -o jsonpath='{.items[*].metadata.name}'
@@ -46,6 +49,7 @@
 - name: Display USB storage setup status
   debug:
     msg: |
+      {% if pv_status.stdout %}
       USB Storage configured in Kubernetes:
       - StorageClass: local-usb-storage
       - PersistentVolumes:
@@ -53,6 +57,15 @@
 
       To use USB storage in a pod, create a PersistentVolumeClaim with:
         storageClassName: local-usb-storage
+      {% else %}
+      USB Storage StorageClass created: local-usb-storage
+
+      No PersistentVolumes created (no workers have usb_device_path or usb_device_uuid configured).
+
+      To add USB storage, configure workers in inventory/hosts.yml with:
+        usb_device_uuid: "your-uuid-here"  # Get with: sudo blkid /dev/sdX1
+        usb_storage_capacity: 100Gi
+      {% endif %}
 
 - name: Clean up temporary manifests
   file:

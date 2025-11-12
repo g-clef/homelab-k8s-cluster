@@ -7,7 +7,11 @@
 
 - name: Add insecure TLS flag for home lab environment
   shell: |
-    sed -i '/- --metric-resolution=15s/a\        - --kubelet-insecure-tls' /tmp/metrics-server.yaml
+    if ! grep -q 'kubelet-insecure-tls' /tmp/metrics-server.yaml; then
+      sed -i '/- --metric-resolution=15s/a\        - --kubelet-insecure-tls' /tmp/metrics-server.yaml
+    fi
+  register: sed_result
+  changed_when: sed_result.rc == 0
 
 - name: Apply metrics-server manifest
   command: kubectl apply -f /tmp/metrics-server.yaml
