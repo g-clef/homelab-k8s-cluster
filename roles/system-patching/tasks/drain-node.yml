@@ -1,6 +1,6 @@
 ---
 - name: Get node name from Kubernetes
-  command: kubectl get nodes -o jsonpath='{.items[?(@.status.addresses[*].address=="{{ ansible_host }}")].metadata.name}'
+  shell: kubectl get nodes -o wide | grep "{{ ansible_host }}" | awk '{print $1}'
   register: k8s_node_name
   delegate_to: "{{ groups['control_plane'][0] }}"
   changed_when: false
