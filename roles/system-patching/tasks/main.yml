@@ -1,0 +1,69 @@
+---
+- name: Check if system patching is enabled
+  debug:
+    msg: "System patching is disabled. Skipping..."
+  when: not system_patching_enabled
+
+- name: System patching workflow
+  when: system_patching_enabled
+  block:
+    - name: Display patching target information
+      debug:
+        msg: |
+          Starting system patching on {{ inventory_hostname }}
+          Node type: {{ 'control-plane' if inventory_hostname in groups['control_plane'] else 'worker' }}
+
+    - name: Update package cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 0
+
+    - name: Perform package updates
+      include_tasks: update-packages.yml
+
+    - name: Check if reboot is required
+      include_tasks: check-reboot-required.yml
+
+    - name: Handle reboot if required
+      when:
+        - reboot_required
+        - system_patching_auto_reboot
+      block:
+        - name: Kubernetes-aware reboot for worker/gpu_worker nodes
+          when: inventory_hostname in groups['workers'] or inventory_hostname in groups['gpu_workers']
+          block:
+            - name: Drain node before reboot
+              include_tasks: drain-node.yml
+
+            - name: Reboot worker node
+              include_tasks: reboot-node.yml
+
+            - name: Uncordon node after reboot
+              include_tasks: uncordon-node.yml
+
+        - name: Control plane reboot (no drain)
+          when: inventory_hostname in groups['control_plane']
+          block:
+            - name: Warning - rebooting control plane
+              debug:
+                msg: |
+                  WARNING: Rebooting control plane node {{ inventory_hostname }}
+                  This may cause temporary cluster API unavailability
+
+            - name: Reboot control plane node
+              include_tasks: reboot-node.yml
+
+            - name: Wait for control plane to be fully ready
+              command: kubectl get nodes {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+              register: node_ready_status
+              until: node_ready_status.stdout == "True"
+              retries: "{{ system_patching_node_ready_retries }}"
+              delay: "{{ system_patching_node_ready_delay }}"
+              delegate_to: "{{ groups['control_plane'][0] }}"
+
+    - name: Display patching completion status
+      debug:
+        msg: |
+          System patching completed on {{ inventory_hostname }}
+          Reboot required: {{ reboot_required }}
+          Reboot performed: {{ reboot_required and system_patching_auto_reboot }}

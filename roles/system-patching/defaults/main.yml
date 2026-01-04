@@ -1,0 +1,26 @@
+---
+# System Patching Configuration
+
+system_patching_enabled: true
+system_patching_auto_reboot: true
+
+# Kubernetes drain configuration
+system_patching_drain_timeout: 300
+system_patching_drain_grace_period: 60
+system_patching_drain_delete_emptydir: true
+system_patching_drain_ignore_daemonsets: true
+
+# Node readiness configuration
+system_patching_node_ready_timeout: 300
+system_patching_node_ready_retries: 30
+system_patching_node_ready_delay: 10
+
+# Reboot configuration
+system_patching_reboot_timeout: 600
+system_patching_post_reboot_delay: 30
+
+# Packages to hold (never upgrade)
+system_patching_hold_packages:
+  - kubelet
+  - kubeadm
+  - kubectl
