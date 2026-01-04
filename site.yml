@@ -72,6 +72,15 @@
   roles:
     - metallb
 
+- name: Install Sealed Secrets
+  hosts: control_plane
+  become: yes
+  tags:
+    - sealed-secrets
+    - secrets
+  roles:
+    - sealed-secrets
+
 - name: Install Metrics Server
   hosts: control_plane
   become: yes

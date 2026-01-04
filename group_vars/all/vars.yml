@@ -28,6 +28,9 @@ usb_format_drive: false  # Set to true to format the USB drive (WARNING: destroy
 metallb_chart_version: "0.14.8"
 metallb_ip_range: "192.168.1.200-192.168.1.220"  # Adjust based on available IPs in your network
 
+# Sealed Secrets Configuration
+sealed_secrets_chart_version: "2.15.1"
+
 # LoadBalancer Service IPs (from MetalLB pool)
 argocd_loadbalancer_ip: "192.168.1.200"
 minio_console_loadbalancer_ip: "192.168.1.201"
