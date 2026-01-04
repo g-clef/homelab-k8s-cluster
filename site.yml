@@ -123,6 +123,41 @@
   roles:
     - expose-services
 
+# System Patching - Control Plane (patches first)
+- name: Patch Control Plane Node
+  hosts: control_plane
+  become: yes
+  tags:
+    - system-patching
+    - patching
+    - updates
+  roles:
+    - system-patching
+
+# System Patching - Worker Nodes (one at a time)
+- name: Patch Worker Nodes (Serial)
+  hosts: workers
+  become: yes
+  serial: 1  # CRITICAL: One worker at a time
+  tags:
+    - system-patching
+    - patching
+    - updates
+  roles:
+    - system-patching
+
+# System Patching - GPU Worker Nodes (one at a time)
+- name: Patch GPU Worker Nodes (Serial)
+  hosts: gpu_workers
+  become: yes
+  serial: 1  # CRITICAL: One GPU worker at a time
+  tags:
+    - system-patching
+    - patching
+    - updates
+  roles:
+    - system-patching
+
 - name: Setup USB Storage on Worker Nodes
   hosts: workers
   become: yes

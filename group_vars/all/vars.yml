@@ -36,5 +36,11 @@ argocd_loadbalancer_ip: "192.168.1.200"
 minio_console_loadbalancer_ip: "192.168.1.201"
 minio_s3_loadbalancer_ip: "192.168.1.202"
 
+# System Patching Configuration
+system_patching_enabled: true
+system_patching_auto_reboot: true
+system_patching_drain_timeout: 300
+system_patching_node_ready_timeout: 300
+
 # Argo CD Configuration
 # Configure these variables in group_vars/secrets.yml to enable app-of-apps pattern
