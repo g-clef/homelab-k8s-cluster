@@ -1,0 +1,53 @@
+---
+- name: Wait for kubelet to be running
+  systemd:
+    name: kubelet
+    state: started
+  register: kubelet_status
+  until: kubelet_status.status.ActiveState == "active"
+  retries: 10
+  delay: 5
+
+- name: Wait for node to register with cluster
+  command: kubectl get node {{ current_k8s_node_name }}
+  register: node_exists
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  until: node_exists.rc == 0
+  retries: 20
+  delay: 5
+  changed_when: false
+
+- name: Uncordon node to allow pod scheduling
+  command: kubectl uncordon {{ current_k8s_node_name }}
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  register: uncordon_result
+
+- name: Display uncordon result
+  debug:
+    msg: "Node {{ current_k8s_node_name }} uncordoned: {{ uncordon_result.stdout }}"
+
+- name: Wait for node to be Ready
+  command: kubectl get node {{ current_k8s_node_name }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: node_ready_check
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  until: node_ready_check.stdout == "True"
+  retries: "{{ system_patching_node_ready_retries }}"
+  delay: "{{ system_patching_node_ready_delay }}"
+  changed_when: false
+
+- name: Get final node status
+  command: kubectl get node {{ current_k8s_node_name }} -o wide
+  register: final_node_status
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  changed_when: false
+
+- name: Display final node status
+  debug:
+    msg: |
+      Node {{ current_k8s_node_name }} is Ready
+      {{ final_node_status.stdout_lines | join('\n') }}
+
+- name: Wait for pods to stabilize
+  pause:
+    seconds: 15
+    prompt: "Allowing pods to reschedule on {{ current_k8s_node_name }}"

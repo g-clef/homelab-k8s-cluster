@@ -1,0 +1,34 @@
+---
+- name: Ensure Kubernetes packages are held
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ system_patching_hold_packages }}"
+
+- name: Get list of upgradable packages
+  shell: apt list --upgradable 2>/dev/null | grep -v "^Listing" || true
+  register: upgradable_packages
+  changed_when: false
+
+- name: Display upgradable packages
+  debug:
+    msg: "{{ upgradable_packages.stdout_lines }}"
+  when: upgradable_packages.stdout_lines | length > 0
+
+- name: Upgrade all packages (excluding held packages)
+  apt:
+    upgrade: dist
+    update_cache: no
+    autoremove: yes
+    autoclean: yes
+  register: apt_upgrade_result
+
+- name: Verify Kubernetes packages were not upgraded
+  shell: |
+    dpkg-query -W -f='${Package} ${Version}\n' kubelet kubeadm kubectl 2>/dev/null || true
+  register: k8s_package_versions
+  changed_when: false
+
+- name: Display Kubernetes package versions (verification)
+  debug:
+    msg: "{{ k8s_package_versions.stdout_lines }}"

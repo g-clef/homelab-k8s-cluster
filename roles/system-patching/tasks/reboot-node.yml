@@ -1,0 +1,34 @@
+---
+- name: Record pre-reboot kernel version
+  command: uname -r
+  register: pre_reboot_kernel
+  changed_when: false
+
+- name: Display reboot notification
+  debug:
+    msg: "Rebooting {{ inventory_hostname }}, current kernel: {{ pre_reboot_kernel.stdout }}"
+
+- name: Reboot the system
+  reboot:
+    reboot_timeout: "{{ system_patching_reboot_timeout }}"
+    msg: "Reboot initiated by Ansible for system patching"
+    pre_reboot_delay: 5
+    post_reboot_delay: "{{ system_patching_post_reboot_delay }}"
+    test_command: uptime
+  register: reboot_result
+
+- name: Re-gather facts after reboot
+  setup:
+
+- name: Record post-reboot kernel version
+  command: uname -r
+  register: post_reboot_kernel
+  changed_when: false
+
+- name: Display reboot completion status
+  debug:
+    msg: |
+      Reboot completed successfully
+      Pre-reboot kernel: {{ pre_reboot_kernel.stdout }}
+      Post-reboot kernel: {{ post_reboot_kernel.stdout }}
+      Kernel updated: {{ pre_reboot_kernel.stdout != post_reboot_kernel.stdout }}

@@ -1,0 +1,45 @@
+---
+- name: Get node name from Kubernetes
+  command: kubectl get nodes -o jsonpath='{.items[?(@.status.addresses[*].address=="{{ ansible_host }}")].metadata.name}'
+  register: k8s_node_name
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  changed_when: false
+
+- name: Set node name fact
+  set_fact:
+    current_k8s_node_name: "{{ k8s_node_name.stdout }}"
+
+- name: Verify node name was found
+  assert:
+    that:
+      - current_k8s_node_name != ""
+    fail_msg: "Could not find Kubernetes node name for {{ inventory_hostname }} ({{ ansible_host }})"
+
+- name: Check current node status before drain
+  command: kubectl get node {{ current_k8s_node_name }} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  register: pre_drain_status
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  changed_when: false
+
+- name: Display pre-drain node status
+  debug:
+    msg: "Node {{ current_k8s_node_name }} status before drain: {{ pre_drain_status.stdout }}"
+
+- name: Drain node to evict pods safely
+  command: >
+    kubectl drain {{ current_k8s_node_name }}
+    --ignore-daemonsets={{ system_patching_drain_ignore_daemonsets | lower }}
+    --delete-emptydir-data={{ system_patching_drain_delete_emptydir | lower }}
+    --grace-period={{ system_patching_drain_grace_period }}
+    --timeout={{ system_patching_drain_timeout }}s
+    --force
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  register: drain_result
+
+- name: Display drain result
+  debug:
+    msg: "Node drain completed: {{ drain_result.stdout_lines | join('\n') }}"
+
+- name: Wait brief period after drain for stabilization
+  pause:
+    seconds: 10
