@@ -90,6 +90,16 @@
   roles:
     - metrics-server
 
+- name: Install kube-prometheus-stack
+  hosts: control_plane
+  become: yes
+  tags:
+    - kube-prometheus-stack
+    - prometheus
+    - monitoring
+  roles:
+    - kube-prometheus-stack
+
 - name: Install Ray Operator
   hosts: control_plane
   become: yes

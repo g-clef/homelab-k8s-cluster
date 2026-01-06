@@ -1,0 +1,100 @@
+---
+- name: Add Prometheus Community Helm repository
+  command: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  register: helm_repo_add
+  changed_when: '"has been added" in helm_repo_add.stdout'
+  failed_when:
+    - helm_repo_add.rc != 0
+    - '"already exists" not in helm_repo_add.stderr'
+
+- name: Update Helm repositories
+  command: helm repo update
+  changed_when: false
+
+- name: Create monitoring namespace
+  command: kubectl create namespace {{ kube_prometheus_stack_namespace | default('monitoring') }}
+  register: create_namespace
+  failed_when:
+    - create_namespace.rc != 0
+    - '"already exists" not in create_namespace.stderr'
+  changed_when: create_namespace.rc == 0
+
+- name: Install kube-prometheus-stack
+  command: >
+    helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack
+    --namespace {{ kube_prometheus_stack_namespace | default('monitoring') }}
+    --version {{ kube_prometheus_stack_chart_version | default('67.6.1') }}
+    --set prometheus.service.type=LoadBalancer
+    --set prometheus.service.loadBalancerIP={{ prometheus_loadbalancer_ip }}
+    --set grafana.service.type=LoadBalancer
+    --set grafana.service.loadBalancerIP={{ grafana_loadbalancer_ip }}
+    --set grafana.adminPassword=admin
+  register: prometheus_install
+  changed_when: prometheus_install.rc == 0
+
+- name: Wait for Prometheus Operator to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kube-prometheus-stack-operator -n {{ kube_prometheus_stack_namespace | default('monitoring') }} --timeout=300s
+  register: prometheus_operator_ready
+  retries: 5
+  delay: 10
+  until: prometheus_operator_ready.rc == 0
+
+- name: Wait for Prometheus to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=prometheus -n {{ kube_prometheus_stack_namespace | default('monitoring') }} --timeout=300s
+  register: prometheus_ready
+  retries: 5
+  delay: 10
+  until: prometheus_ready.rc == 0
+
+- name: Wait for Grafana to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n {{ kube_prometheus_stack_namespace | default('monitoring') }} --timeout=300s
+  register: grafana_ready
+  retries: 5
+  delay: 10
+  until: grafana_ready.rc == 0
+
+- name: Wait for Alertmanager to be ready
+  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=alertmanager -n {{ kube_prometheus_stack_namespace | default('monitoring') }} --timeout=300s
+  register: alertmanager_ready
+  retries: 5
+  delay: 10
+  until: alertmanager_ready.rc == 0
+
+- name: Get Prometheus service details
+  command: kubectl get svc -n {{ kube_prometheus_stack_namespace | default('monitoring') }} -l app.kubernetes.io/name=prometheus -o wide
+  register: prometheus_svc
+  changed_when: false
+
+- name: Get Grafana service details
+  command: kubectl get svc -n {{ kube_prometheus_stack_namespace | default('monitoring') }} -l app.kubernetes.io/name=grafana -o wide
+  register: grafana_svc
+  changed_when: false
+
+- name: Display kube-prometheus-stack status
+  debug:
+    msg: |
+      kube-prometheus-stack installed successfully!
+
+      Components installed:
+      - Prometheus Operator (manages Prometheus, Alertmanager, and ServiceMonitors)
+      - Prometheus (metrics collection and storage)
+      - Grafana (visualization and dashboards)
+      - Alertmanager (alert routing and management)
+      - Node Exporter (host metrics)
+      - Kube State Metrics (Kubernetes metrics)
+
+      Access Information:
+      - Prometheus UI: http://{{ prometheus_loadbalancer_ip }}:9090
+      - Grafana UI: http://{{ grafana_loadbalancer_ip }}:80
+      - Grafana default credentials: admin / admin (CHANGE IN PRODUCTION!)
+
+      Verification commands:
+      kubectl get pods -n {{ kube_prometheus_stack_namespace | default('monitoring') }}
+      kubectl get servicemonitors -n {{ kube_prometheus_stack_namespace | default('monitoring') }}
+      kubectl get prometheusrules -n {{ kube_prometheus_stack_namespace | default('monitoring') }}
+
+      To create custom ServiceMonitors for your applications:
+      https://prometheus-operator.dev/docs/operator/design/#servicemonitor
+
+      Pre-configured Grafana dashboards are available at:
+      http://{{ grafana_loadbalancer_ip }}/dashboards

@@ -31,10 +31,16 @@ metallb_ip_range: "192.168.1.200-192.168.1.220"  # Adjust based on available IPs
 # Sealed Secrets Configuration
 sealed_secrets_chart_version: "2.15.1"
 
+# Prometheus Operator Configuration (kube-prometheus-stack)
+kube_prometheus_stack_chart_version: "67.6.1"
+kube_prometheus_stack_namespace: "monitoring"
+
 # LoadBalancer Service IPs (from MetalLB pool)
 argocd_loadbalancer_ip: "192.168.1.200"
 minio_console_loadbalancer_ip: "192.168.1.201"
 minio_s3_loadbalancer_ip: "192.168.1.202"
+prometheus_loadbalancer_ip: "192.168.1.203"
+grafana_loadbalancer_ip: "192.168.1.204"
 
 # System Patching Configuration
 system_patching_enabled: true
