@@ -33,7 +33,7 @@
   changed_when: prometheus_install.rc == 0
 
 - name: Wait for Prometheus Operator to be ready
-  command: kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=kube-prometheus-stack-operator -n {{ kube_prometheus_stack_namespace | default('monitoring') }} --timeout=300s
+  command: kubectl wait --for=condition=ready pod -l app=kube-prometheus-stack-operator -n {{ kube_prometheus_stack_namespace | default('monitoring') }} --timeout=300s
   register: prometheus_operator_ready
   retries: 5
   delay: 10
