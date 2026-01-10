@@ -190,17 +190,17 @@
         namespace: minio
       spec:
         image: quay.io/minio/minio:{{ minio_version | default('RELEASE.2024-10-02T17-50-41Z') }}
-        ## Set security context to match NFS UID mapping (Synology maps UID 1000 -> 1024)
-        podSecurityContext:
-          runAsUser: 1024
-          runAsGroup: 1024
-          fsGroup: 1024
-          runAsNonRoot: true
-          fsGroupChangePolicy: "OnRootMismatch"
         pools:
           - servers: {{ minio_servers | default(1) }}
             name: pool-0
             volumesPerServer: {{ minio_volumes_per_server | default(1) }}
+            ## Set security context to match NFS UID mapping (Synology maps UID 1000 -> 1024)
+            securityContext:
+              runAsUser: 1024
+              runAsGroup: 1024
+              fsGroup: 1024
+              runAsNonRoot: true
+              fsGroupChangePolicy: "OnRootMismatch"
             volumeClaimTemplate:
               metadata:
                 name: data
