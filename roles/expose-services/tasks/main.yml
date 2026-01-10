@@ -49,7 +49,7 @@
         ports:
           - name: http-console
             port: 9001
-            targetPort: 9001
+            targetPort: 9090
             protocol: TCP
         selector:
           v1.min.io/tenant: minio
