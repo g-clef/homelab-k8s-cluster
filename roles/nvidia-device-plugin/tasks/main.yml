@@ -1,4 +1,16 @@
 ---
+- name: Create nvidia RuntimeClass
+  shell: |
+    kubectl apply -f - <<'EOF'
+    apiVersion: node.k8s.io/v1
+    kind: RuntimeClass
+    metadata:
+      name: nvidia
+    handler: nvidia
+    EOF
+  register: runtimeclass_apply
+  changed_when: '"created" in runtimeclass_apply.stdout or "configured" in runtimeclass_apply.stdout'
+
 - name: Apply NVIDIA device plugin DaemonSet
   shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.5/nvidia-device-plugin.yml
   register: device_plugin_apply

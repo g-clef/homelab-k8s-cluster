@@ -35,9 +35,33 @@
       - build-essential
       - dkms
       - linux-headers-generic
+      - "linux-headers-{{ ansible_kernel }}"
       - curl
       - gnupg
     state: present
+
+- name: Blacklist nouveau driver
+  copy:
+    dest: /etc/modprobe.d/blacklist-nouveau.conf
+    content: |
+      blacklist nouveau
+      options nouveau modeset=0
+    mode: '0644'
+  register: nouveau_blacklist
+
+- name: Update initramfs to apply nouveau blacklist
+  command: update-initramfs -u
+  when: nouveau_blacklist.changed
+
+- name: Check if nouveau is currently loaded
+  command: lsmod
+  register: lsmod_output
+  changed_when: false
+
+- name: Reboot to unload nouveau before installing NVIDIA driver
+  reboot:
+    reboot_timeout: 300
+  when: nouveau_blacklist.changed or ('nouveau' in lsmod_output.stdout)
 
 - name: Add NVIDIA CUDA repository key
   shell: |
@@ -78,11 +102,16 @@
     state: present
     update_cache: yes
 
-- name: Configure containerd for NVIDIA runtime using nvidia-ctk
-  shell: nvidia-ctk runtime configure --runtime=containerd
-  args:
-    creates: /etc/containerd/config.toml.bak
+- name: Check if containerd already uses NVIDIA as default runtime
+  command: grep -q 'default_runtime_name.*nvidia' /etc/containerd/config.toml
+  register: containerd_nvidia_default
+  changed_when: false
+  failed_when: false
+
+- name: Configure containerd for NVIDIA runtime and set as default
+  shell: nvidia-ctk runtime configure --runtime=containerd --set-as-default
   register: nvidia_ctk_configure
+  when: containerd_nvidia_default.rc != 0
 
 - name: Restart containerd service
   systemd:
@@ -95,3 +124,15 @@
   reboot:
     reboot_timeout: 300
   when: nvidia_driver_install.changed
+
+- name: Verify nvidia-smi works after driver installation
+  command: nvidia-smi
+  register: nvidia_smi_check
+  changed_when: false
+  retries: 3
+  delay: 10
+  until: nvidia_smi_check.rc == 0
+
+- name: Display nvidia-smi output
+  debug:
+    msg: "{{ nvidia_smi_check.stdout_lines }}"

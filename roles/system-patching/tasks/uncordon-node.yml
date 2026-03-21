@@ -47,6 +47,18 @@
       Node {{ current_k8s_node_name }} is Ready
       {{ final_node_status.stdout_lines | join('\n') }}
 
+- name: Verify nvidia-smi works after reboot (GPU nodes only)
+  command: nvidia-smi
+  register: post_reboot_nvidia_smi
+  changed_when: false
+  failed_when: post_reboot_nvidia_smi.rc != 0
+  when: inventory_hostname in groups['gpu_workers']
+
+- name: Display nvidia-smi output post-reboot (GPU nodes only)
+  debug:
+    msg: "{{ post_reboot_nvidia_smi.stdout_lines }}"
+  when: inventory_hostname in groups['gpu_workers']
+
 - name: Wait for pods to stabilize
   pause:
     seconds: 15
