@@ -102,23 +102,24 @@
     state: present
     update_cache: yes
 
-- name: Check if containerd already uses NVIDIA as default runtime
-  command: grep -q 'default_runtime_name.*nvidia' /etc/containerd/config.toml
-  register: containerd_nvidia_default
+- name: Configure containerd with NVIDIA runtime (adds runtime stanza)
+  shell: nvidia-ctk runtime configure --runtime=containerd
   changed_when: false
-  failed_when: false
 
-- name: Configure containerd for NVIDIA runtime and set as default
-  shell: nvidia-ctk runtime configure --runtime=containerd --set-as-default
-  register: nvidia_ctk_configure
-  when: containerd_nvidia_default.rc != 0
+- name: Set nvidia as the default containerd runtime
+  lineinfile:
+    path: /etc/containerd/config.toml
+    regexp: '^\s*default_runtime_name\s*='
+    line: '      default_runtime_name = "nvidia"'
+    backup: yes
+  register: containerd_default_changed
 
 - name: Restart containerd service
   systemd:
     name: containerd
     state: restarted
     enabled: yes
-  when: nvidia_ctk_configure.changed
+  when: containerd_default_changed.changed
 
 - name: Reboot system if NVIDIA driver was installed
   reboot:
