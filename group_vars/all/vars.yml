@@ -41,6 +41,7 @@ minio_console_loadbalancer_ip: "192.168.1.201"
 minio_s3_loadbalancer_ip: "192.168.1.202"
 prometheus_loadbalancer_ip: "192.168.1.203"
 grafana_loadbalancer_ip: "192.168.1.204"
+ollama_ip: "192.168.1.205"
 
 # System Patching Configuration
 system_patching_enabled: true
