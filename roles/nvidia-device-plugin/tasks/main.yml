@@ -12,7 +12,7 @@
   changed_when: '"created" in runtimeclass_apply.stdout or "configured" in runtimeclass_apply.stdout'
 
 - name: Apply NVIDIA device plugin DaemonSet
-  shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/v0.14.5/nvidia-device-plugin.yml
+  shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/{{ nvidia_device_plugin_version }}/nvidia-device-plugin.yml
   register: device_plugin_apply
   changed_when: '"created" in device_plugin_apply.stdout or "configured" in device_plugin_apply.stdout'
 
@@ -23,6 +23,10 @@
   delay: 3
   until: daemonset_check.rc == 0
   changed_when: false
+
+- name: Restart NVIDIA device plugin pods to pick up containerd changes
+  shell: kubectl rollout restart daemonset/nvidia-device-plugin-daemonset -n kube-system
+  changed_when: true
 
 - name: Wait for NVIDIA device plugin pods to be ready
   shell: kubectl wait --for=condition=ready pod -l name=nvidia-device-plugin-ds -n kube-system --timeout=300s
