@@ -44,6 +44,8 @@
             effect: NoSchedule
           priorityClassName: "system-node-critical"
           runtimeClassName: nvidia
+          nodeSelector:
+            accelerator: nvidia
           containers:
           - image: nvcr.io/nvidia/k8s-device-plugin:{{ nvidia_device_plugin_version }}
             name: nvidia-device-plugin-ctr
