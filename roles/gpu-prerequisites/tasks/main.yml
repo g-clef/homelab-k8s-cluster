@@ -111,6 +111,17 @@
   register: nvidia_ctk_configure
   changed_when: '"changed" in nvidia_ctk_configure.stdout'
 
+- name: Create CDI output directory
+  file:
+    path: /etc/cdi
+    state: directory
+    mode: '0755'
+
+- name: Generate CDI device specs for NVIDIA GPU
+  shell: nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+  register: cdi_generate
+  changed_when: true
+
 - name: Restart containerd to apply NVIDIA runtime configuration
   systemd:
     name: containerd
