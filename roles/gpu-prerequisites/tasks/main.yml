@@ -113,13 +113,6 @@
   register: nvidia_ctk_configure
   when: nvidia_runtime_check.rc != 0
 
-- name: Set nvidia as the default containerd runtime
-  lineinfile:
-    path: /etc/containerd/config.toml
-    regexp: '^\s*default_runtime_name\s*='
-    line: '      default_runtime_name = "nvidia"'
-    backup: yes
-
 - name: Restart containerd to apply NVIDIA runtime configuration
   systemd:
     name: containerd

@@ -20,7 +20,52 @@
   changed_when: false
 
 - name: Apply NVIDIA device plugin DaemonSet
-  shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/{{ nvidia_device_plugin_version }}/nvidia-device-plugin.yml
+  shell: |
+    kubectl apply -f - <<'EOF'
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: nvidia-device-plugin-daemonset
+      namespace: kube-system
+    spec:
+      selector:
+        matchLabels:
+          name: nvidia-device-plugin-ds
+      updateStrategy:
+        type: RollingUpdate
+      template:
+        metadata:
+          labels:
+            name: nvidia-device-plugin-ds
+        spec:
+          tolerations:
+          - key: nvidia.com/gpu
+            operator: Exists
+            effect: NoSchedule
+          priorityClassName: "system-node-critical"
+          runtimeClassName: nvidia
+          containers:
+          - image: nvcr.io/nvidia/k8s-device-plugin:{{ nvidia_device_plugin_version }}
+            name: nvidia-device-plugin-ctr
+            env:
+            - name: FAIL_ON_INIT_ERROR
+              value: "false"
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: "utility"
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+            volumeMounts:
+            - name: device-plugin
+              mountPath: /var/lib/kubelet/device-plugins
+          volumes:
+          - name: device-plugin
+            hostPath:
+              path: /var/lib/kubelet/device-plugins
+    EOF
   register: device_plugin_apply
   changed_when: '"created" in device_plugin_apply.stdout or "configured" in device_plugin_apply.stdout'
 
