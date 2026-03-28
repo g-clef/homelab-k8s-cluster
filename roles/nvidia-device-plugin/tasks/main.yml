@@ -12,7 +12,7 @@
   changed_when: '"created" in runtimeclass_apply.stdout or "configured" in runtimeclass_apply.stdout'
 
 - name: Apply NVIDIA device plugin DaemonSet
-  shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/{{ nvidia_device_plugin_version }}/nvidia-device-plugin.yml
+  shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/{{ nvidia_device_plugin_version }}/deployments/static/nvidia-device-plugin.yml
   register: device_plugin_apply
   changed_when: '"created" in device_plugin_apply.stdout or "configured" in device_plugin_apply.stdout'
 
