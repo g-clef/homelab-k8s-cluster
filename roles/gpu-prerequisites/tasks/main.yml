@@ -90,8 +90,11 @@
     filename: nvidia-container-toolkit
     update_cache: yes
 
-- name: Remove orphaned libnvidia-extra packages that block upgrades
-  shell: apt-get purge -y 'libnvidia-extra-*' 2>/dev/null || true
+- name: Force-remove libnvidia-extra packages that block upgrades (bypasses broken dpkg state)
+  shell: |
+    for pkg in $(dpkg -l 'libnvidia-extra-*' 2>/dev/null | awk '/^[rhi]i/{print $2}'); do
+      dpkg --purge --force-all "$pkg" || true
+    done
   changed_when: false
 
 - name: Fix any broken package state before installing driver
