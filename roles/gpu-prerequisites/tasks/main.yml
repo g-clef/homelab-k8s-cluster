@@ -92,7 +92,7 @@
 
 - name: Install NVIDIA driver
   apt:
-    name: nvidia-driver-535
+    name: nvidia-driver-570
     state: present
   register: nvidia_driver_install
 
