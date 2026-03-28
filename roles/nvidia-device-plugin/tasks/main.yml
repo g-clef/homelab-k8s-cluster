@@ -11,23 +11,6 @@
   register: runtimeclass_apply
   changed_when: '"created" in runtimeclass_apply.stdout or "configured" in runtimeclass_apply.stdout'
 
-- name: Create NVIDIA device plugin ConfigMap (force nvml discovery strategy)
-  shell: |
-    kubectl apply -f - <<'EOF'
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: nvidia-device-plugin-config
-      namespace: kube-system
-    data:
-      config.yaml: |
-        version: v1
-        flags:
-          deviceDiscoveryStrategy: nvml
-    EOF
-  register: configmap_apply
-  changed_when: '"created" in configmap_apply.stdout or "configured" in configmap_apply.stdout'
-
 - name: Apply NVIDIA device plugin DaemonSet
   shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/{{ nvidia_device_plugin_version }}/deployments/static/nvidia-device-plugin.yml
   register: device_plugin_apply
@@ -41,9 +24,12 @@
   until: daemonset_check.rc == 0
   changed_when: false
 
-- name: Restart NVIDIA device plugin pods to pick up containerd changes
-  shell: kubectl rollout restart daemonset/nvidia-device-plugin-daemonset -n kube-system
-  changed_when: true
+- name: Patch device plugin to use nvml discovery strategy
+  shell: |
+    kubectl patch daemonset nvidia-device-plugin-daemonset -n kube-system --type=strategic \
+      -p '{"spec":{"template":{"spec":{"containers":[{"name":"nvidia-device-plugin-ctr","args":["--device-discovery-strategy=nvml"]}]}}}}'
+  register: patch_result
+  changed_when: '"patched" in patch_result.stdout'
 
 - name: Wait for NVIDIA device plugin pods to be ready
   shell: kubectl wait --for=condition=ready pod -l name=nvidia-device-plugin-ds -n kube-system --timeout=300s
