@@ -102,14 +102,14 @@
     state: present
     update_cache: yes
 
-- name: Check if nvidia runtime is already configured in containerd
-  shell: grep -rq "nvidia-container-runtime" /etc/containerd/ 2>/dev/null
+- name: Check if nvidia runtimes stanza is configured in containerd
+  shell: grep -q 'runtimes\.nvidia' /etc/containerd/config.toml 2>/dev/null
   register: nvidia_runtime_check
   changed_when: false
   failed_when: false
 
-- name: Configure containerd with NVIDIA runtime (adds runtime stanza)
-  shell: nvidia-ctk runtime configure --runtime=containerd
+- name: Configure containerd with NVIDIA runtime (adds runtime stanza and sets as default)
+  shell: nvidia-ctk runtime configure --runtime=containerd --set-as-default
   register: nvidia_ctk_configure
   when: nvidia_runtime_check.rc != 0
 
