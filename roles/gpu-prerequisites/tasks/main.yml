@@ -94,6 +94,10 @@
   shell: apt-get purge -y 'libnvidia-extra-*' 2>/dev/null || true
   changed_when: false
 
+- name: Fix any broken package state before installing driver
+  shell: apt-get -f install -y
+  changed_when: false
+
 - name: Install NVIDIA driver
   apt:
     name: nvidia-driver-{{ nvidia_driver_version }}
