@@ -99,7 +99,7 @@
 
 - name: Fix any broken package state before installing driver
   shell: apt-get -f install -y
-  changed_when: false
+  register: apt_fix_broken
 
 - name: Install NVIDIA driver
   apt:
@@ -131,10 +131,10 @@
     enabled: yes
   when: nvidia_ctk_configure.changed
 
-- name: Reboot system if NVIDIA driver was installed
+- name: Reboot system if NVIDIA driver was installed or repaired
   reboot:
     reboot_timeout: 300
-  when: nvidia_driver_install.changed
+  when: nvidia_driver_install.changed or apt_fix_broken.changed
 
 - name: Verify nvidia-smi works after driver installation
   command: nvidia-smi
