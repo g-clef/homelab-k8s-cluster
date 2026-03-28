@@ -15,6 +15,10 @@
   register: runtimeclass_apply
   changed_when: '"created" in runtimeclass_apply.stdout or "configured" in runtimeclass_apply.stdout'
 
+- name: Delete existing NVIDIA device plugin DaemonSet to ensure clean state
+  shell: kubectl delete daemonset nvidia-device-plugin-daemonset -n kube-system --ignore-not-found
+  changed_when: false
+
 - name: Apply NVIDIA device plugin DaemonSet
   shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/{{ nvidia_device_plugin_version }}/nvidia-device-plugin.yml
   register: device_plugin_apply

@@ -102,14 +102,16 @@
     state: present
     update_cache: yes
 
+- name: Check if nvidia runtime is already configured in containerd
+  shell: grep -rq "nvidia-container-runtime" /etc/containerd/ 2>/dev/null
+  register: nvidia_runtime_check
+  changed_when: false
+  failed_when: false
+
 - name: Configure containerd with NVIDIA runtime (adds runtime stanza)
-  shell: |
-    BEFORE=$(md5sum /etc/containerd/config.toml 2>/dev/null | awk '{print $1}' || echo "none")
-    nvidia-ctk runtime configure --runtime=containerd
-    AFTER=$(md5sum /etc/containerd/config.toml 2>/dev/null | awk '{print $1}' || echo "none")
-    if [ "$BEFORE" != "$AFTER" ]; then echo "changed"; else echo "unchanged"; fi
+  shell: nvidia-ctk runtime configure --runtime=containerd
   register: nvidia_ctk_configure
-  changed_when: '"changed" in nvidia_ctk_configure.stdout'
+  when: nvidia_runtime_check.rc != 0
 
 - name: Set nvidia as the default containerd runtime
   lineinfile:
@@ -123,6 +125,7 @@
     name: containerd
     state: restarted
     enabled: yes
+  when: nvidia_ctk_configure.changed
 
 - name: Reboot system if NVIDIA driver was installed
   reboot:
