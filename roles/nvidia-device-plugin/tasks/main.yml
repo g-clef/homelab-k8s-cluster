@@ -11,6 +11,23 @@
   register: runtimeclass_apply
   changed_when: '"created" in runtimeclass_apply.stdout or "configured" in runtimeclass_apply.stdout'
 
+- name: Create NVIDIA device plugin ConfigMap (force nvml discovery strategy)
+  shell: |
+    kubectl apply -f - <<'EOF'
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: nvidia-device-plugin-config
+      namespace: kube-system
+    data:
+      config.yaml: |
+        version: v1
+        flags:
+          deviceDiscoveryStrategy: nvml
+    EOF
+  register: configmap_apply
+  changed_when: '"created" in configmap_apply.stdout or "configured" in configmap_apply.stdout'
+
 - name: Apply NVIDIA device plugin DaemonSet
   shell: kubectl apply -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/{{ nvidia_device_plugin_version }}/deployments/static/nvidia-device-plugin.yml
   register: device_plugin_apply
