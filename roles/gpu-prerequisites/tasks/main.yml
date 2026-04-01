@@ -90,9 +90,9 @@
     filename: nvidia-container-toolkit
     update_cache: yes
 
-- name: Force-remove libnvidia-extra packages that block upgrades (bypasses broken dpkg state)
+- name: Force-remove libnvidia packages that block upgrades (bypasses broken dpkg state)
   shell: |
-    for pkg in $(dpkg -l 'libnvidia-extra-*' 2>/dev/null | awk '/^[rhi]i/{print $2}'); do
+    for pkg in $(dpkg -l 'libnvidia-extra-*' 'libnvidia-egl-xcb*' 'libnvidia-egl-xlib*' 2>/dev/null | awk '/^[rhi]i/{print $2}'); do
       dpkg --purge --force-all "$pkg" || true
     done
   changed_when: false
