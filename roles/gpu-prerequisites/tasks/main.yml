@@ -103,7 +103,7 @@
 
 - name: Install NVIDIA driver
   apt:
-    name: nvidia-driver-{{ nvidia_driver_version }}
+    name: nvidia-driver-{{ nvidia_driver_version }}-open
     state: present
   register: nvidia_driver_install
 
